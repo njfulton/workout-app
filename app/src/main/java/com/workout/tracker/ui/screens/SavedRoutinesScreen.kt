@@ -148,6 +148,7 @@ fun SavedRoutinesScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SavedRoutineCard(
     routine: SavedRoutine,
