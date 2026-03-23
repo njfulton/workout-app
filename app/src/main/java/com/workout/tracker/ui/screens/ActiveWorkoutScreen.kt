@@ -187,7 +187,7 @@ fun ExerciseCard(
             }
 
             Spacer(Modifier.height(8.dp))
-            HorizontalDivider()
+            Divider()
             Spacer(Modifier.height(8.dp))
 
             // New set input
