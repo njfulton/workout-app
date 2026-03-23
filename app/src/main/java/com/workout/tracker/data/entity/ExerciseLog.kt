@@ -17,5 +17,6 @@ data class ExerciseLog(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val workoutLogId: Long,
     val exerciseId: Long,
-    val orderIndex: Int
+    val orderIndex: Int,
+    val supersetGroup: Int? = null
 )

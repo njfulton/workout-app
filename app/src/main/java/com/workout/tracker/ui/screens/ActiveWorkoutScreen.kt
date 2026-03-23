@@ -91,16 +91,46 @@ fun ActiveWorkoutScreen(
                 }
             }
 
-            // Exercises
-            items(activeWorkout.exercises) { activeExercise ->
-                ExerciseCard(
-                    activeExercise = activeExercise,
-                    onLogSet = { setNum, reps, weight, isWarmup ->
-                        workoutViewModel.logSet(activeExercise.exerciseLogId, setNum, reps, weight, isWarmup)
-                    },
-                    onStartTimer = { workoutViewModel.startRestTimer(it) },
-                    defaultRestSeconds = activeExercise.restSeconds
-                )
+            // Exercises - group supersets together
+            val exercises = activeWorkout.exercises
+            val grouped = mutableListOf<List<ActiveExercise>>()
+            var i = 0
+            while (i < exercises.size) {
+                val ex = exercises[i]
+                if (ex.supersetGroup != null) {
+                    val group = mutableListOf(ex)
+                    while (i + 1 < exercises.size && exercises[i + 1].supersetGroup == ex.supersetGroup) {
+                        i++
+                        group.add(exercises[i])
+                    }
+                    grouped.add(group)
+                } else {
+                    grouped.add(listOf(ex))
+                }
+                i++
+            }
+
+            items(grouped.size) { groupIndex ->
+                val group = grouped[groupIndex]
+                if (group.size > 1) {
+                    // Superset card
+                    SupersetCard(
+                        exercises = group,
+                        onLogSet = { exerciseLogId, setNum, reps, weight, isWarmup ->
+                            workoutViewModel.logSet(exerciseLogId, setNum, reps, weight, isWarmup)
+                        },
+                        onStartTimer = { workoutViewModel.startRestTimer(it) }
+                    )
+                } else {
+                    ExerciseCard(
+                        activeExercise = group[0],
+                        onLogSet = { setNum, reps, weight, isWarmup ->
+                            workoutViewModel.logSet(group[0].exerciseLogId, setNum, reps, weight, isWarmup)
+                        },
+                        onStartTimer = { workoutViewModel.startRestTimer(it) },
+                        defaultRestSeconds = group[0].restSeconds
+                    )
+                }
             }
 
             if (activeWorkout.exercises.isEmpty()) {
@@ -275,6 +305,124 @@ fun ExerciseCard(
                     },
                     enabled = repsText.toIntOrNull() != null
                 ) { Text("Log Set") }
+            }
+        }
+    }
+}
+
+@Composable
+fun SupersetCard(
+    exercises: List<ActiveExercise>,
+    onLogSet: (Long, Int, Int, Double?, Boolean) -> Unit,
+    onStartTimer: (Int) -> Unit
+) {
+    var activeTab by remember { mutableStateOf(0) }
+    val restSeconds = exercises.firstOrNull()?.restSeconds ?: 90
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+    ) {
+        Column {
+            // Superset header
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("SUPERSET", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    exercises.joinToString(" + ") { it.exercise.name },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
+
+            // Tabs for each exercise
+            TabRow(selectedTabIndex = activeTab) {
+                exercises.forEachIndexed { index, ex ->
+                    Tab(
+                        selected = activeTab == index,
+                        onClick = { activeTab = index },
+                        text = { Text(ex.exercise.name, maxLines = 1) }
+                    )
+                }
+            }
+
+            // Content for selected exercise
+            val currentExercise = exercises.getOrNull(activeTab) ?: return@Card
+            Column(modifier = Modifier.padding(16.dp)) {
+                // Overload suggestion
+                currentExercise.overloadSuggestion?.let { suggestion ->
+                    if (suggestion.suggestedWeight > suggestion.currentWeight) {
+                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+                            Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.TrendingUp, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text(suggestion.reason, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
+
+                // Previous sets
+                currentExercise.sets.forEach { set ->
+                    Text(
+                        "Set ${set.setNumber}: ${set.reps} reps${if (set.weightLbs != null) " @ ${set.weightLbs}lbs" else ""}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Spacer(Modifier.height(8.dp))
+                Divider()
+                Spacer(Modifier.height(8.dp))
+
+                // Set input
+                val nextSetNumber = currentExercise.sets.size + 1
+                var repsText by remember(activeTab) { mutableStateOf("") }
+                var weightText by remember(activeTab) { mutableStateOf("") }
+
+                Text("Set $nextSetNumber", style = MaterialTheme.typography.labelMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = repsText,
+                        onValueChange = { repsText = it },
+                        label = { Text("Reps") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f), singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = weightText,
+                        onValueChange = { weightText = it },
+                        label = { Text("Weight") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.weight(1f), singleLine = true
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(Modifier.weight(1f))
+                    Button(
+                        onClick = {
+                            val reps = repsText.toIntOrNull() ?: return@Button
+                            val weight = weightText.toDoubleOrNull()
+                            onLogSet(currentExercise.exerciseLogId, nextSetNumber, reps, weight, false)
+                            repsText = ""
+                            weightText = ""
+                            // Auto-advance to next exercise in superset, or start rest timer if last
+                            if (activeTab < exercises.size - 1) {
+                                activeTab++
+                            } else {
+                                activeTab = 0
+                                onStartTimer(restSeconds)
+                            }
+                        },
+                        enabled = repsText.toIntOrNull() != null
+                    ) { Text("Log & Next") }
+                }
             }
         }
     }

@@ -17,7 +17,8 @@ data class ActiveExercise(
     val sets: List<SetLog> = emptyList(),
     val overloadSuggestion: OverloadSuggestion? = null,
     val restSeconds: Int = 90,
-    val history: List<ExerciseHistoryEntry> = emptyList()
+    val history: List<ExerciseHistoryEntry> = emptyList(),
+    val supersetGroup: Int? = null
 )
 
 data class ActiveWorkoutState(
@@ -58,11 +59,11 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
                 val activeExercises = templateExercises.mapNotNull { te ->
                     val exercise = repository.getExerciseById(te.exerciseId) ?: return@mapNotNull null
                     val elId = repository.insertExerciseLog(
-                        ExerciseLog(workoutLogId = logId, exerciseId = te.exerciseId, orderIndex = te.orderIndex)
+                        ExerciseLog(workoutLogId = logId, exerciseId = te.exerciseId, orderIndex = te.orderIndex, supersetGroup = te.supersetGroup)
                     )
                     val suggestion = repository.getProgressiveOverloadSuggestion(te.exerciseId)
                     val history = repository.getExerciseHistory(te.exerciseId)
-                    ActiveExercise(exerciseLogId = elId, exercise = exercise, overloadSuggestion = suggestion, restSeconds = te.restSeconds, history = history)
+                    ActiveExercise(exerciseLogId = elId, exercise = exercise, overloadSuggestion = suggestion, restSeconds = te.restSeconds, history = history, supersetGroup = te.supersetGroup)
                 }
                 _activeWorkout.value = ActiveWorkoutState(workoutLog = savedLog, exercises = activeExercises, isActive = true)
             } else {

@@ -56,7 +56,8 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
                     orderIndex = index,
                     targetSets = config.sets,
                     targetReps = config.reps,
-                    restSeconds = config.restSeconds
+                    restSeconds = config.restSeconds,
+                    supersetGroup = config.supersetGroup
                 )
             }
             repository.insertTemplateExercises(templateExercises)
@@ -75,7 +76,8 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
                     orderIndex = index,
                     targetSets = config.sets,
                     targetReps = config.reps,
-                    restSeconds = config.restSeconds
+                    restSeconds = config.restSeconds,
+                    supersetGroup = config.supersetGroup
                 )
             }
             repository.insertTemplateExercises(templateExercises)
@@ -256,5 +258,6 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
 data class TemplateExerciseConfig(
     val sets: Int = 3,
     val reps: Int = 10,
-    val restSeconds: Int = 90
+    val restSeconds: Int = 90,
+    val supersetGroup: Int? = null
 )
