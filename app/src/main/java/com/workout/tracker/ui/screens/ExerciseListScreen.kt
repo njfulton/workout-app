@@ -149,6 +149,7 @@ fun ExerciseListScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddExerciseDialog(
     onDismiss: () -> Unit,
