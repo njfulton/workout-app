@@ -448,6 +448,20 @@ fun DayDetailItem(
                 }
             }
 
+            // Undo button for completed/skipped items
+            if (isDone && !isRestDay) {
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { scheduleViewModel.markUncompleted(item) },
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Icon(Icons.Default.Undo, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Mark Incomplete", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+
             // Action buttons for non-completed items
             if (!isDone && !isRestDay) {
                 Spacer(Modifier.height(8.dp))
@@ -458,9 +472,9 @@ fun DayDetailItem(
                             workoutViewModel.startWorkout(
                                 name = item.templateName ?: "Workout",
                                 type = WorkoutType.STRENGTH,
-                                templateId = item.templateId
+                                templateId = item.templateId,
+                                scheduledWorkoutId = item.id
                             )
-                            scheduleViewModel.markCompleted(item)
                             onDismissDialog()
                             navController.navigate(Screen.ActiveWorkout.route) {
                                 popUpTo(Screen.Home.route)

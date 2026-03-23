@@ -66,6 +66,7 @@ class WorkoutRepository(
     fun getScheduleBetween(start: Long, end: Long): Flow<List<ScheduledWorkoutWithTemplate>> = scheduleDao.getScheduleBetween(start, end)
     suspend fun insertScheduledWorkout(sw: ScheduledWorkout): Long = scheduleDao.insert(sw)
     suspend fun updateScheduledWorkout(sw: ScheduledWorkout) = scheduleDao.update(sw)
+    suspend fun setScheduledWorkoutCompleted(id: Long, isCompleted: Boolean) = scheduleDao.setCompleted(id, isCompleted)
     suspend fun deleteScheduledWorkout(sw: ScheduledWorkout) = scheduleDao.delete(sw)
 
     // Saved Routines

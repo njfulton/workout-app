@@ -43,6 +43,9 @@ interface ScheduleDao {
     @Query("DELETE FROM scheduled_workouts WHERE scheduledDate >= :fromDate AND isCompleted = 0")
     suspend fun deleteFutureIncomplete(fromDate: Long)
 
+    @Query("UPDATE scheduled_workouts SET isCompleted = :isCompleted, isSkipped = 0 WHERE id = :id")
+    suspend fun setCompleted(id: Long, isCompleted: Boolean)
+
     @Insert
     suspend fun insert(scheduledWorkout: ScheduledWorkout): Long
 

@@ -45,7 +45,8 @@ data class ActiveWorkoutState(
     val exercises: List<ActiveExercise> = emptyList(),
     val isActive: Boolean = false,
     val currentGroupIndex: Int = 0,
-    val isFromTemplate: Boolean = false
+    val isFromTemplate: Boolean = false,
+    val scheduledWorkoutId: Long? = null
 ) {
     val groups: List<ExerciseGroup>
         get() {
@@ -104,7 +105,7 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
     private val _timerFinishedEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val timerFinishedEvent: SharedFlow<Unit> = _timerFinishedEvent
 
-    fun startWorkout(name: String, type: WorkoutType, templateId: Long? = null) {
+    fun startWorkout(name: String, type: WorkoutType, templateId: Long? = null, scheduledWorkoutId: Long? = null) {
         viewModelScope.launch {
             val log = WorkoutLog(
                 name = name,
@@ -132,10 +133,11 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
                 }
                 _activeWorkout.value = ActiveWorkoutState(
                     workoutLog = savedLog, exercises = activeExercises,
-                    isActive = true, isFromTemplate = true
+                    isActive = true, isFromTemplate = true,
+                    scheduledWorkoutId = scheduledWorkoutId
                 )
             } else {
-                _activeWorkout.value = ActiveWorkoutState(workoutLog = savedLog, isActive = true, isFromTemplate = false)
+                _activeWorkout.value = ActiveWorkoutState(workoutLog = savedLog, isActive = true, isFromTemplate = false, scheduledWorkoutId = scheduledWorkoutId)
             }
         }
     }
@@ -243,16 +245,26 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
 
     fun discardWorkout() {
         viewModelScope.launch {
-            val log = _activeWorkout.value.workoutLog ?: return@launch
+            val state = _activeWorkout.value
+            val log = state.workoutLog ?: return@launch
             repository.deleteWorkoutLog(log)
+            // Undo the scheduled workout completion since the workout was discarded
+            state.scheduledWorkoutId?.let { id ->
+                repository.setScheduledWorkoutCompleted(id, false)
+            }
             _activeWorkout.value = ActiveWorkoutState()
         }
     }
 
     fun finishWorkout() {
         viewModelScope.launch {
-            val log = _activeWorkout.value.workoutLog ?: return@launch
+            val state = _activeWorkout.value
+            val log = state.workoutLog ?: return@launch
             repository.updateWorkoutLog(log.copy(endTime = System.currentTimeMillis()))
+            // Mark the scheduled workout as completed now that we're actually saving
+            state.scheduledWorkoutId?.let { id ->
+                repository.setScheduledWorkoutCompleted(id, true)
+            }
             _activeWorkout.value = ActiveWorkoutState()
         }
     }

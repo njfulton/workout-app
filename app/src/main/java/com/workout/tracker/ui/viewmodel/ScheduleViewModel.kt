@@ -75,6 +75,12 @@ class ScheduleViewModel(private val repository: WorkoutRepository) : ViewModel()
         }
     }
 
+    fun markUncompleted(sw: ScheduledWorkoutWithTemplate) {
+        viewModelScope.launch {
+            repository.updateScheduledWorkout(sw.toEntity().copy(isCompleted = false, isSkipped = false))
+        }
+    }
+
     fun markSkipped(sw: ScheduledWorkoutWithTemplate) {
         viewModelScope.launch {
             repository.updateScheduledWorkout(sw.toEntity().copy(isSkipped = true, isCompleted = false))

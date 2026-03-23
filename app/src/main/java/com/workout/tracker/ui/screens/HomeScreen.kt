@@ -164,15 +164,19 @@ fun HomeScreen(
                                     }
                                 }
                             }
-                            if (scheduled.templateId != null && !scheduled.isCompleted && !scheduled.isSkipped) {
+                            if (scheduled.isCompleted || scheduled.isSkipped) {
+                                IconButton(onClick = { scheduleViewModel.markUncompleted(scheduled) }) {
+                                    Icon(Icons.Default.Undo, contentDescription = "Mark Incomplete", modifier = Modifier.size(20.dp))
+                                }
+                            } else if (scheduled.templateId != null) {
                                 FilledTonalButton(
                                     onClick = {
                                         workoutViewModel.startWorkout(
                                             name = scheduled.templateName ?: "Workout",
                                             type = com.workout.tracker.data.entity.WorkoutType.STRENGTH,
-                                            templateId = scheduled.templateId
+                                            templateId = scheduled.templateId,
+                                            scheduledWorkoutId = scheduled.id
                                         )
-                                        scheduleViewModel.markCompleted(scheduled)
                                         navController.navigate(Screen.ActiveWorkout.route) {
                                             popUpTo(Screen.Home.route)
                                         }
