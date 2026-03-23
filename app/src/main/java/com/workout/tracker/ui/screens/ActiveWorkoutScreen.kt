@@ -376,7 +376,7 @@ fun FocusedExerciseCard(
                     EditableSetRow(set = set, onUpdateSet = onUpdateSet)
                 }
                 Spacer(Modifier.height(8.dp))
-                HorizontalDivider()
+                Divider()
             }
 
             // New set input (show even if "done" so user can add extra sets)
@@ -585,7 +585,7 @@ fun FocusedSupersetCard(
                         EditableSetRow(set = set, onUpdateSet = onUpdateSet)
                     }
                     Spacer(Modifier.height(8.dp))
-                    HorizontalDivider()
+                    Divider()
                 }
 
                 Spacer(Modifier.height(8.dp))
