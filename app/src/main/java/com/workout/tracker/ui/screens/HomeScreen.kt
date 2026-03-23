@@ -150,16 +150,36 @@ fun HomeScreen(
                         scheduled.templateId != null -> Icons.Default.FitnessCenter
                         else -> Icons.Default.Event
                     }
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            if (scheduled.templateId != null && !scheduled.isCompleted && !scheduled.isSkipped) {
+                                workoutViewModel.startWorkout(
+                                    name = scheduled.templateName ?: "Workout",
+                                    type = com.workout.tracker.data.entity.WorkoutType.STRENGTH,
+                                    templateId = scheduled.templateId
+                                )
+                                scheduleViewModel.markCompleted(scheduled)
+                                navController.navigate(Screen.ActiveWorkout.route) {
+                                    popUpTo(Screen.Home.route)
+                                }
+                            } else {
+                                navController.navigate(Screen.Schedule.route)
+                            }
+                        }
+                    ) {
                         Row(
                             modifier = Modifier.padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(12.dp))
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(displayName, style = MaterialTheme.typography.bodyLarge)
                                 Text(dateFormat.format(Date(scheduled.scheduledDate)), style = MaterialTheme.typography.bodySmall)
+                            }
+                            if (scheduled.templateId != null && !scheduled.isCompleted && !scheduled.isSkipped) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = "Start", tint = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }

@@ -102,7 +102,8 @@ fun WorkoutNavHost(navController: NavHostController) {
             ScheduleScreen(
                 navController = navController,
                 scheduleViewModel = scheduleViewModel,
-                templateViewModel = templateViewModel
+                templateViewModel = templateViewModel,
+                workoutViewModel = workoutViewModel
             )
         }
     }

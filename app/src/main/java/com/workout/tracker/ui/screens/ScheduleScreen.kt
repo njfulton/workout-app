@@ -16,8 +16,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.workout.tracker.data.dao.ScheduledWorkoutWithTemplate
 import com.workout.tracker.data.dao.TemplateWithExerciseCount
+import com.workout.tracker.data.entity.WorkoutType
+import com.workout.tracker.ui.navigation.Screen
 import com.workout.tracker.ui.viewmodel.ScheduleViewModel
 import com.workout.tracker.ui.viewmodel.TemplateViewModel
+import com.workout.tracker.ui.viewmodel.WorkoutViewModel
 import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -29,7 +32,8 @@ import java.util.*
 fun ScheduleScreen(
     navController: NavController,
     scheduleViewModel: ScheduleViewModel,
-    templateViewModel: TemplateViewModel
+    templateViewModel: TemplateViewModel,
+    workoutViewModel: WorkoutViewModel
 ) {
     val schedule by scheduleViewModel.upcomingSchedule.collectAsStateWithLifecycle()
     val templates by templateViewModel.templates.collectAsStateWithLifecycle()
@@ -69,7 +73,7 @@ fun ScheduleScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(schedule, key = { it.id }) { item ->
-                    ScheduleItemCard(item, dateFormat, scheduleViewModel)
+                    ScheduleItemCard(item, dateFormat, scheduleViewModel, workoutViewModel, navController)
                 }
             }
         }
@@ -95,7 +99,9 @@ fun ScheduleScreen(
 fun ScheduleItemCard(
     item: ScheduledWorkoutWithTemplate,
     dateFormat: SimpleDateFormat,
-    scheduleViewModel: ScheduleViewModel
+    scheduleViewModel: ScheduleViewModel,
+    workoutViewModel: WorkoutViewModel,
+    navController: NavController
 ) {
     val displayName = item.templateName ?: item.label ?: "Unknown"
     val isRestDay = item.label?.lowercase()?.contains("rest") == true
@@ -157,6 +163,31 @@ fun ScheduleItemCard(
             // Action buttons for non-completed items
             if (!isDone) {
                 Spacer(Modifier.height(8.dp))
+
+                // Start workout button (only for template-based items)
+                if (item.templateId != null) {
+                    Button(
+                        onClick = {
+                            workoutViewModel.startWorkout(
+                                name = item.templateName ?: "Workout",
+                                type = WorkoutType.STRENGTH,
+                                templateId = item.templateId
+                            )
+                            scheduleViewModel.markCompleted(item)
+                            navController.navigate(Screen.ActiveWorkout.route) {
+                                popUpTo(Screen.Home.route)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(vertical = 8.dp)
+                    ) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Start Workout")
+                    }
+                    Spacer(Modifier.height(4.dp))
+                }
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
