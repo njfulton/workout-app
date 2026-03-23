@@ -78,9 +78,7 @@ fun ImportRoutineScreen(
                 enabled = routineText.isNotBlank() && !isImporting
             ) {
                 if (isImporting) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Importing...")
+                    Text("Importing\u2026")
                 } else {
                     Icon(Icons.Default.FileDownload, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
