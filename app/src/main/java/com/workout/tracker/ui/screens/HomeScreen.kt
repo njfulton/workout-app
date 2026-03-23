@@ -143,10 +143,15 @@ fun HomeScreen(
                     QuickActionCard(
                         modifier = Modifier.weight(1f),
                         icon = Icons.Default.FileDownload,
-                        label = "Import Routine",
+                        label = "Import\nRoutine",
                         onClick = { navController.navigate(Screen.ImportRoutine.route) }
                     )
-                    Spacer(Modifier.weight(1f))
+                    QuickActionCard(
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.Default.FolderOpen,
+                        label = "Saved\nRoutines",
+                        onClick = { navController.navigate(Screen.SavedRoutines.route) }
+                    )
                 }
             }
 

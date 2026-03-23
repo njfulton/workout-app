@@ -9,7 +9,8 @@ class WorkoutRepository(
     private val exerciseDao: ExerciseDao,
     private val templateDao: WorkoutTemplateDao,
     private val workoutLogDao: WorkoutLogDao,
-    private val scheduleDao: ScheduleDao
+    private val scheduleDao: ScheduleDao,
+    private val savedRoutineDao: SavedRoutineDao? = null
 ) {
     // Exercises
     val allExercises: Flow<List<Exercise>> = exerciseDao.getAllExercises()
@@ -63,6 +64,26 @@ class WorkoutRepository(
     suspend fun insertScheduledWorkout(sw: ScheduledWorkout): Long = scheduleDao.insert(sw)
     suspend fun updateScheduledWorkout(sw: ScheduledWorkout) = scheduleDao.update(sw)
     suspend fun deleteScheduledWorkout(sw: ScheduledWorkout) = scheduleDao.delete(sw)
+
+    // Saved Routines
+    fun getAllSavedRoutines(): Flow<List<SavedRoutine>> = savedRoutineDao?.getAllSavedRoutines() ?: kotlinx.coroutines.flow.flowOf(emptyList())
+    suspend fun getSavedRoutineById(id: Long): SavedRoutine? = savedRoutineDao?.getSavedRoutineById(id)
+    suspend fun insertSavedRoutine(routine: SavedRoutine): Long = savedRoutineDao?.insert(routine) ?: 0
+    suspend fun updateSavedRoutine(routine: SavedRoutine) = savedRoutineDao?.update(routine)
+    suspend fun deleteSavedRoutine(routine: SavedRoutine) = savedRoutineDao?.delete(routine)
+    fun getRoutineUsageHistory(routineId: Long): Flow<List<RoutineUsageHistory>> = savedRoutineDao?.getUsageHistory(routineId) ?: kotlinx.coroutines.flow.flowOf(emptyList())
+    suspend fun insertRoutineUsageHistory(history: RoutineUsageHistory): Long = savedRoutineDao?.insertUsageHistory(history) ?: 0
+    suspend fun updateRoutineUsageHistory(history: RoutineUsageHistory) = savedRoutineDao?.updateUsageHistory(history)
+    suspend fun deleteRoutineUsageHistory(history: RoutineUsageHistory) = savedRoutineDao?.deleteUsageHistory(history)
+
+    // Schedule - clear future
+    suspend fun clearFutureSchedule() {
+        val todayMillis = java.time.LocalDate.now()
+            .atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        // Get all upcoming non-completed workouts and delete them
+        // We need to use the DAO directly since this is a bulk operation
+        scheduleDao.deleteFutureIncomplete(todayMillis)
+    }
 
     // Progressive Overload Suggestion
     suspend fun getProgressiveOverloadSuggestion(exerciseId: Long): OverloadSuggestion? {

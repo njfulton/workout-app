@@ -43,6 +43,7 @@ fun ScheduleScreen(
     val monthSchedule by scheduleViewModel.monthSchedule.collectAsStateWithLifecycle()
     val templates by templateViewModel.templates.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
+    var showClearConfirm by remember { mutableStateOf(false) }
     var selectedDayItems by remember { mutableStateOf<List<ScheduledWorkoutWithTemplate>?>(null) }
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
 
@@ -53,6 +54,11 @@ fun ScheduleScreen(
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showClearConfirm = true }) {
+                        Icon(Icons.Default.DeleteSweep, contentDescription = "Clear future schedule")
                     }
                 }
             )
@@ -151,6 +157,27 @@ fun ScheduleScreen(
             onScheduleLabel = { label, date ->
                 scheduleViewModel.scheduleNonTemplate(label, date)
                 showAddDialog = false
+            }
+        )
+    }
+
+    if (showClearConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { Text("Clear Future Schedule") },
+            text = { Text("This will remove all upcoming workouts that haven't been completed. Completed workout history will not be affected.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scheduleViewModel.clearFutureSchedule()
+                        showClearConfirm = false
+                    }
+                ) {
+                    Text("Clear", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirm = false }) { Text("Cancel") }
             }
         )
     }

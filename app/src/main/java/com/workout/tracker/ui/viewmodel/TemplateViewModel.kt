@@ -89,6 +89,10 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
     private val _importResult = MutableStateFlow<String?>(null)
     val importResult: StateFlow<String?> = _importResult
 
+    val savedRoutines: StateFlow<List<com.workout.tracker.data.entity.SavedRoutine>> =
+        repository.getAllSavedRoutines()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     fun clearImportResult() {
         _importResult.value = null
     }
@@ -170,18 +174,130 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
     fun importWithSchedule(
         startDate: java.time.LocalDate,
         dayAssignments: Map<Int, List<java.time.DayOfWeek>>,
-        weeks: Int
+        weeks: Int,
+        routineName: String? = null
     ) {
         val parsedRoutines = _lastParsedRoutines ?: return
         val text = _lastParsedText ?: return
         viewModelScope.launch {
             try {
                 val result = createTemplatesAndSchedule(parsedRoutines, text, startDate, dayAssignments, weeks)
+
+                // Save the routine for future re-import
+                val dayAssignmentsJson = buildDayAssignmentsJson(dayAssignments)
+                val routineNamesJson = buildRoutineNamesJson(parsedRoutines)
+                val name = routineName
+                    ?: if (parsedRoutines.size == 1) parsedRoutines[0].name
+                    else "${parsedRoutines.size}-Day Program"
+
+                val savedRoutine = com.workout.tracker.data.entity.SavedRoutine(
+                    name = name,
+                    rawText = text,
+                    dayAssignmentsJson = dayAssignmentsJson,
+                    weekCount = weeks,
+                    routineNamesJson = routineNamesJson
+                )
+                val savedId = repository.insertSavedRoutine(savedRoutine)
+
+                // Record this usage
+                val startMillis = startDate.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                val endDate = startDate.plusWeeks(weeks.toLong())
+                val endMillis = endDate.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                repository.insertRoutineUsageHistory(
+                    com.workout.tracker.data.entity.RoutineUsageHistory(
+                        savedRoutineId = savedId,
+                        startDate = startMillis,
+                        endDate = endMillis
+                    )
+                )
+
                 _importResult.value = result
             } catch (e: Throwable) {
                 _importResult.value = "Import failed: ${e.message}"
             }
         }
+    }
+
+    // Re-import a saved routine
+    fun reimportSavedRoutine(
+        savedRoutine: com.workout.tracker.data.entity.SavedRoutine,
+        startDate: java.time.LocalDate,
+        dayAssignments: Map<Int, List<java.time.DayOfWeek>>,
+        weeks: Int
+    ) {
+        viewModelScope.launch {
+            try {
+                // Parse the saved text
+                val routineBlocks = splitIntoRoutineBlocks(savedRoutine.rawText)
+                val parsedRoutines = routineBlocks.map { parseRoutineBlock(it) }
+                    .filter { it.exercises.isNotEmpty() }
+
+                val result = createTemplatesAndSchedule(parsedRoutines, savedRoutine.rawText, startDate, dayAssignments, weeks)
+
+                // Record usage
+                val startMillis = startDate.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                val endDate = startDate.plusWeeks(weeks.toLong())
+                val endMillis = endDate.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                repository.insertRoutineUsageHistory(
+                    com.workout.tracker.data.entity.RoutineUsageHistory(
+                        savedRoutineId = savedRoutine.id,
+                        startDate = startMillis,
+                        endDate = endMillis
+                    )
+                )
+
+                _importResult.value = result
+            } catch (e: Throwable) {
+                _importResult.value = "Import failed: ${e.message}"
+            }
+        }
+    }
+
+    fun updateSavedRoutineNotes(routineId: Long, notes: String) {
+        viewModelScope.launch {
+            val routine = repository.getSavedRoutineById(routineId) ?: return@launch
+            repository.updateSavedRoutine(routine.copy(notes = notes))
+        }
+    }
+
+    fun deleteSavedRoutine(routine: com.workout.tracker.data.entity.SavedRoutine) {
+        viewModelScope.launch {
+            repository.deleteSavedRoutine(routine)
+        }
+    }
+
+    fun getUsageHistory(routineId: Long): Flow<List<com.workout.tracker.data.entity.RoutineUsageHistory>> {
+        return repository.getRoutineUsageHistory(routineId)
+    }
+
+    private fun buildDayAssignmentsJson(dayAssignments: Map<Int, List<java.time.DayOfWeek>>): String {
+        val entries = dayAssignments.entries.joinToString(",") { (k, v) ->
+            "\"$k\":[${v.joinToString(",") { "\"${it.name}\"" }}]"
+        }
+        return "{$entries}"
+    }
+
+    private fun buildRoutineNamesJson(routines: List<ParsedRoutine>): String {
+        return "[${routines.joinToString(",") { "\"${it.name.replace("\"", "\\\"")}\"" }}]"
+    }
+
+    fun parseDayAssignmentsJson(json: String): Map<Int, List<java.time.DayOfWeek>> {
+        val result = mutableMapOf<Int, List<java.time.DayOfWeek>>()
+        // Simple JSON parsing: {"0":["MONDAY","THURSDAY"],"1":["TUESDAY"]}
+        val entryPattern = Regex("\"(\\d+)\":\\[([^]]*)]")
+        for (match in entryPattern.findAll(json)) {
+            val key = match.groupValues[1].toInt()
+            val daysStr = match.groupValues[2]
+            val days = Regex("\"(\\w+)\"").findAll(daysStr)
+                .map { java.time.DayOfWeek.valueOf(it.groupValues[1]) }
+                .toList()
+            result[key] = days
+        }
+        return result
+    }
+
+    fun parseRoutineNamesJson(json: String): List<String> {
+        return Regex("\"([^\"]+)\"").findAll(json).map { it.groupValues[1] }.toList()
     }
 
     // Legacy import (no config step)

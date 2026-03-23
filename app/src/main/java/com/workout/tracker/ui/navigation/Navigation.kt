@@ -27,6 +27,7 @@ sealed class Screen(val route: String) {
     object EditTemplate : Screen("edit_template/{templateId}") {
         fun createRoute(templateId: Long) = "edit_template/$templateId"
     }
+    object SavedRoutines : Screen("saved_routines")
 }
 
 @Composable
@@ -125,6 +126,13 @@ fun WorkoutNavHost(navController: NavHostController) {
                 scheduleViewModel = scheduleViewModel,
                 templateViewModel = templateViewModel,
                 workoutViewModel = workoutViewModel
+            )
+        }
+        composable(Screen.SavedRoutines.route) {
+            SavedRoutinesScreen(
+                navController = navController,
+                templateViewModel = templateViewModel,
+                scheduleViewModel = scheduleViewModel
             )
         }
     }

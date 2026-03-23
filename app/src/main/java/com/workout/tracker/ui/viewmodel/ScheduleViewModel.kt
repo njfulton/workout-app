@@ -94,6 +94,12 @@ class ScheduleViewModel(private val repository: WorkoutRepository) : ViewModel()
         }
     }
 
+    fun clearFutureSchedule() {
+        viewModelScope.launch {
+            repository.clearFutureSchedule()
+        }
+    }
+
     private fun ScheduledWorkoutWithTemplate.toEntity() = ScheduledWorkout(
         id = id,
         templateId = templateId,
