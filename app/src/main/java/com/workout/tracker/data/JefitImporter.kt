@@ -4,9 +4,6 @@ import android.content.Context
 import android.util.Log
 import com.workout.tracker.data.entity.*
 import com.workout.tracker.data.repository.WorkoutRepository
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.io.StringReader
 
 class JefitImporter(
     private val context: Context,
@@ -226,7 +223,7 @@ class JefitImporter(
         // header: row_id,USERID,TIMESTAMP,rating,name,description,image2,image1,bodypart,...
         val lines = section.lines()
         for (line in lines) {
-            if (!line.startsWith(Regex("\\d"))) continue
+            if (line.isEmpty() || !line[0].isDigit()) continue
             try {
                 val row = parseCsvLine(line)
                 if (row.size >= 10) {
@@ -256,7 +253,7 @@ class JefitImporter(
 
         val lines = sessionSection.lines()
         for (line in lines) {
-            if (!line.startsWith(Regex("\\d"))) continue
+            if (line.isEmpty() || !line[0].isDigit()) continue
             try {
                 val row = parseCsvLine(line)
                 // header: rowid,_id,USERID,edit_time,day_id,total_time,workout_time,rest_time,
