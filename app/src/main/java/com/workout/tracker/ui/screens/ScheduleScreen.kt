@@ -1,6 +1,7 @@
 package com.workout.tracker.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -18,7 +19,9 @@ import com.workout.tracker.data.dao.TemplateWithExerciseCount
 import com.workout.tracker.ui.viewmodel.ScheduleViewModel
 import com.workout.tracker.ui.viewmodel.TemplateViewModel
 import java.text.SimpleDateFormat
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,12 +79,12 @@ fun ScheduleScreen(
         ScheduleWorkoutDialog(
             templates = templates,
             onDismiss = { showAddDialog = false },
-            onScheduleTemplate = { templateId, daysFromNow ->
-                scheduleViewModel.scheduleWorkout(templateId, LocalDate.now().plusDays(daysFromNow.toLong()))
+            onScheduleTemplate = { templateId, date ->
+                scheduleViewModel.scheduleWorkout(templateId, date)
                 showAddDialog = false
             },
-            onScheduleLabel = { label, daysFromNow ->
-                scheduleViewModel.scheduleNonTemplate(label, LocalDate.now().plusDays(daysFromNow.toLong()))
+            onScheduleLabel = { label, date ->
+                scheduleViewModel.scheduleNonTemplate(label, date)
                 showAddDialog = false
             }
         )
@@ -197,92 +200,73 @@ fun ScheduleItemCard(
 
     if (showMoveDialog) {
         MoveDateDialog(
-            currentDate = dateFormat.format(Date(item.scheduledDate)),
+            currentDateMillis = item.scheduledDate,
             onDismiss = { showMoveDialog = false },
-            onMove = { daysFromNow ->
-                scheduleViewModel.reschedule(item, LocalDate.now().plusDays(daysFromNow.toLong()))
+            onMove = { newDate ->
+                scheduleViewModel.reschedule(item, newDate)
                 showMoveDialog = false
             }
         )
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MoveDateDialog(
-    currentDate: String,
+    currentDateMillis: Long,
     onDismiss: () -> Unit,
-    onMove: (Int) -> Unit
+    onMove: (LocalDate) -> Unit
 ) {
-    var selectedDays by remember { mutableStateOf(0) }
-    val dateFormat = remember { SimpleDateFormat("EEE, MMM d", Locale.getDefault()) }
-    val dayOptions = (0..14).map { days ->
-        val cal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, days) }
-        val label = when (days) {
-            0 -> "Today - ${dateFormat.format(cal.time)}"
-            1 -> "Tomorrow - ${dateFormat.format(cal.time)}"
-            else -> dateFormat.format(cal.time)
-        }
-        label to days
-    }
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = currentDateMillis
+    )
 
-    AlertDialog(
+    DatePickerDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Move Workout") },
-        text = {
-            Column {
-                Text("Currently: $currentDate", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(8.dp))
-                Text("Move to:", style = MaterialTheme.typography.labelMedium)
-                LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
-                    items(dayOptions) { (label, days) ->
-                        TextButton(onClick = { selectedDays = days }, modifier = Modifier.fillMaxWidth()) {
-                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                RadioButton(selected = selectedDays == days, onClick = null)
-                                Spacer(Modifier.width(4.dp))
-                                Text(label)
-                            }
-                        }
-                    }
-                }
-            }
-        },
         confirmButton = {
-            TextButton(onClick = { onMove(selectedDays) }) { Text("Move") }
+            TextButton(onClick = {
+                datePickerState.selectedDateMillis?.let { millis ->
+                    val date = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+                    onMove(date)
+                }
+            }) { Text("Move") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }
         }
-    )
+    ) {
+        DatePicker(state = datePickerState)
+    }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ScheduleWorkoutDialog(
     templates: List<TemplateWithExerciseCount>,
     onDismiss: () -> Unit,
-    onScheduleTemplate: (Long, Int) -> Unit,
-    onScheduleLabel: (String, Int) -> Unit
+    onScheduleTemplate: (Long, LocalDate) -> Unit,
+    onScheduleLabel: (String, LocalDate) -> Unit
 ) {
     var selectedTemplate by remember { mutableStateOf<TemplateWithExerciseCount?>(null) }
     var selectedLabel by remember { mutableStateOf<String?>(null) }
     var customLabel by remember { mutableStateOf("") }
-    var daysFromNow by remember { mutableStateOf(0) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
 
-    val quickOptions = listOf("Rest Day", "Cardio", "Stretching / Mobility")
-    val dayLabels = listOf(
-        "Today" to 0, "Tomorrow" to 1, "In 2 days" to 2, "In 3 days" to 3,
-        "In 4 days" to 4, "In 5 days" to 5, "In 6 days" to 6, "In 7 days" to 7
-    )
-
+    val quickOptions = listOf("Rest Day", "Cardio", "Mobility")
     val hasSelection = selectedTemplate != null || selectedLabel != null || customLabel.isNotBlank()
+    val dateFormat = remember { SimpleDateFormat("EEE, MMM d", Locale.getDefault()) }
+    val displayDate = dateFormat.format(
+        Date.from(selectedDate.atStartOfDay(ZoneId.systemDefault()).toInstant())
+    )
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Schedule") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Quick options:", style = MaterialTheme.typography.labelMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Quick options - wrapped
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     quickOptions.forEach { option ->
                         FilterChip(
                             selected = selectedLabel == option,
@@ -308,7 +292,7 @@ fun ScheduleWorkoutDialog(
                 )
 
                 if (templates.isNotEmpty()) {
-                    Text("Templates:", style = MaterialTheme.typography.labelMedium)
+                    Text("Template:", style = MaterialTheme.typography.labelMedium)
                     LazyColumn(modifier = Modifier.heightIn(max = 120.dp)) {
                         items(templates) { template ->
                             TextButton(
@@ -330,17 +314,14 @@ fun ScheduleWorkoutDialog(
 
                 Divider()
 
-                Text("When:", style = MaterialTheme.typography.labelMedium)
-                LazyColumn(modifier = Modifier.heightIn(max = 150.dp)) {
-                    items(dayLabels) { (label, days) ->
-                        TextButton(onClick = { daysFromNow = days }, modifier = Modifier.fillMaxWidth()) {
-                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                RadioButton(selected = daysFromNow == days, onClick = null)
-                                Spacer(Modifier.width(4.dp))
-                                Text(label)
-                            }
-                        }
-                    }
+                // Date selector
+                OutlinedButton(
+                    onClick = { showDatePicker = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(displayDate)
                 }
             }
         },
@@ -348,9 +329,9 @@ fun ScheduleWorkoutDialog(
             TextButton(
                 onClick = {
                     when {
-                        selectedTemplate != null -> onScheduleTemplate(selectedTemplate!!.id, daysFromNow)
-                        selectedLabel != null -> onScheduleLabel(selectedLabel!!, daysFromNow)
-                        customLabel.isNotBlank() -> onScheduleLabel(customLabel, daysFromNow)
+                        selectedTemplate != null -> onScheduleTemplate(selectedTemplate!!.id, selectedDate)
+                        selectedLabel != null -> onScheduleLabel(selectedLabel!!, selectedDate)
+                        customLabel.isNotBlank() -> onScheduleLabel(customLabel, selectedDate)
                     }
                 },
                 enabled = hasSelection
@@ -358,4 +339,26 @@ fun ScheduleWorkoutDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = selectedDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        selectedDate = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+                    }
+                    showDatePicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 }
