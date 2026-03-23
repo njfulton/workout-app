@@ -225,6 +225,28 @@ fun ExerciseCard(
                 Text("${activeExercise.sets.size} sets", style = MaterialTheme.typography.bodySmall)
             }
 
+            // Last workout summary (always visible)
+            if (activeExercise.history.isNotEmpty()) {
+                val lastWorkoutTime = activeExercise.history.first().startTime
+                val lastSets = activeExercise.history.filter { it.startTime == lastWorkoutTime }
+                val dateFormat = java.text.SimpleDateFormat("MMM d", java.util.Locale.US)
+                val dateStr = dateFormat.format(java.util.Date(lastWorkoutTime))
+                val lastWeight = lastSets.mapNotNull { it.weightLbs }.maxOrNull()
+                val repsStr = lastSets.mapNotNull { it.reps }.joinToString(", ")
+                val summary = if (lastWeight != null && lastWeight > 0) {
+                    "Last ($dateStr): ${lastWeight.toInt()}lb x $repsStr"
+                } else if (repsStr.isNotEmpty()) {
+                    "Last ($dateStr): $repsStr reps"
+                } else null
+                if (summary != null) {
+                    Text(
+                        summary,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
             // Overload suggestion
             activeExercise.overloadSuggestion?.let { suggestion ->
                 if (suggestion.suggestedWeight > suggestion.currentWeight) {
@@ -376,6 +398,25 @@ fun SupersetCard(
             // Content for selected exercise
             val currentExercise = exercises.getOrNull(activeTab) ?: return@Card
             Column(modifier = Modifier.padding(16.dp)) {
+                // Last workout summary
+                if (currentExercise.history.isNotEmpty()) {
+                    val lastWorkoutTime = currentExercise.history.first().startTime
+                    val lastSets = currentExercise.history.filter { it.startTime == lastWorkoutTime }
+                    val dateFormat = java.text.SimpleDateFormat("MMM d", java.util.Locale.US)
+                    val dateStr = dateFormat.format(java.util.Date(lastWorkoutTime))
+                    val lastWeight = lastSets.mapNotNull { it.weightLbs }.maxOrNull()
+                    val repsStr = lastSets.mapNotNull { it.reps }.joinToString(", ")
+                    val summary = if (lastWeight != null && lastWeight > 0) {
+                        "Last ($dateStr): ${lastWeight.toInt()}lb x $repsStr"
+                    } else if (repsStr.isNotEmpty()) {
+                        "Last ($dateStr): $repsStr reps"
+                    } else null
+                    if (summary != null) {
+                        Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.height(4.dp))
+                    }
+                }
+
                 // Overload suggestion
                 currentExercise.overloadSuggestion?.let { suggestion ->
                     if (suggestion.suggestedWeight > suggestion.currentWeight) {
