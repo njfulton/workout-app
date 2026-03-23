@@ -333,22 +333,97 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
         dayAssignments: Map<Int, List<java.time.DayOfWeek>>,
         weeks: Int
     ): String {
-        val createdTemplateIds = mutableListOf<Long>()
+        val progressionText = extractProgressionText(text)
+        val fullProgressionText = extractFullProgressionText(text)
+        val phases = parsePhasesWithModifications(fullProgressionText, weeks)
         val results = mutableListOf<String>()
 
+        // Create base templates (used for phases with no structural changes)
+        val baseTemplateIds = mutableListOf<Long>()
         for (routine in parsedRoutines) {
             val templateId = createTemplateFromParsed(routine)
-            createdTemplateIds.add(templateId)
+            baseTemplateIds.add(templateId)
             results.add("\"${routine.name}\" (${routine.exercises.size} exercises)")
         }
 
-        val progressionText = extractProgressionText(text)
-        val scheduleInfo = generateScheduleWithDayAssignments(
-            createdTemplateIds, weeks, startDate, dayAssignments, progressionText
+        // Determine which phases need variant templates
+        // Group phases by their modification signature to avoid duplicate templates
+        data class ModSignature(val anchorSets: Int?, val accessorySets: Int?, val affectedDays: List<Int>?)
+        val modPhases = phases.filter { it.anchorSetsOverride != null || it.accessorySetsOverride != null }
+        val signatureToPhases = modPhases.groupBy {
+            ModSignature(it.anchorSetsOverride, it.accessorySetsOverride, it.affectedDays)
+        }
+
+        // Create variant templates for each unique modification
+        // Map: phaseLabel -> list of templateIds (parallel to baseTemplateIds)
+        val phaseTemplateMap = mutableMapOf<String, List<Long>>()
+
+        // All unmodified phases use base templates
+        for (phase in phases) {
+            if (phase.anchorSetsOverride == null && phase.accessorySetsOverride == null) {
+                phaseTemplateMap[phase.label] = baseTemplateIds
+            }
+        }
+
+        for ((sig, sigPhases) in signatureToPhases) {
+            val variantIds = mutableListOf<Long>()
+            for ((routineIndex, routine) in parsedRoutines.withIndex()) {
+                val needsModification = sig.affectedDays == null || routineIndex in sig.affectedDays
+                if (needsModification && (sig.anchorSets != null || sig.accessorySets != null)) {
+                    val modifiedRoutine = applyPhaseModifications(
+                        routine, sig.anchorSets, sig.accessorySets,
+                        sigPhases.first().label
+                    )
+                    val templateId = createTemplateFromParsed(modifiedRoutine)
+                    variantIds.add(templateId)
+                    results.add("\"${modifiedRoutine.name}\" (${modifiedRoutine.exercises.size} exercises)")
+                } else {
+                    variantIds.add(baseTemplateIds[routineIndex])
+                }
+            }
+            for (phase in sigPhases) {
+                phaseTemplateMap[phase.label] = variantIds
+            }
+        }
+
+        // Build week-to-templateIds mapping
+        val weekTemplateMap = mutableMapOf<Int, List<Long>>()
+        for (week in 1..weeks) {
+            val phase = phases.find { week in it.weekRange }
+            weekTemplateMap[week] = if (phase != null) {
+                phaseTemplateMap[phase.label] ?: baseTemplateIds
+            } else {
+                baseTemplateIds
+            }
+        }
+
+        val scheduleInfo = generateScheduleWithPhaseTemplates(
+            weekTemplateMap, weeks, startDate, dayAssignments, phases
         )
 
-        val summary = "Imported ${results.size} routine(s):\n${results.joinToString("\n") { "  - $it" }}"
+        val templateCount = (baseTemplateIds + phaseTemplateMap.values.flatten()).distinct().size
+        val summary = "Imported ${templateCount} template(s):\n${results.joinToString("\n") { "  - $it" }}"
         return "$summary\n\n$scheduleInfo"
+    }
+
+    private fun applyPhaseModifications(
+        routine: ParsedRoutine,
+        anchorSetsOverride: Int?,
+        accessorySetsOverride: Int?,
+        phaseLabel: String
+    ): ParsedRoutine {
+        val modifiedExercises = routine.exercises.mapIndexed { index, ex ->
+            val isAnchor = index == 0 // First exercise is the anchor/main lift
+            when {
+                isAnchor && anchorSetsOverride != null -> ex.copy(sets = anchorSetsOverride)
+                !isAnchor && accessorySetsOverride != null -> ex.copy(sets = accessorySetsOverride)
+                else -> ex
+            }
+        }
+        return routine.copy(
+            name = "${routine.name} ($phaseLabel)",
+            exercises = modifiedExercises
+        )
     }
 
     private suspend fun parseAndImportRoutinesLegacy(text: String, completedTodayIndex: Int? = null): String {
@@ -752,6 +827,53 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
         return "Scheduled $scheduledCount workouts across $weeks weeks (starting ${startDate})$phaseSummary$completedNote"
     }
 
+    private suspend fun generateScheduleWithPhaseTemplates(
+        weekTemplateMap: Map<Int, List<Long>>,
+        weeks: Int,
+        startDate: java.time.LocalDate,
+        dayAssignments: Map<Int, List<java.time.DayOfWeek>>,
+        phases: List<Phase>
+    ): String {
+        val today = java.time.LocalDate.now()
+        var scheduledCount = 0
+        val phaseLabels = mutableListOf<String>()
+
+        for (week in 1..weeks) {
+            val weekMonday = startDate.plusWeeks((week - 1).toLong())
+                .with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+            val phase = phases.find { week in it.weekRange }
+            val phaseLabel = phase?.label
+            val templateIds = weekTemplateMap[week] ?: continue
+
+            for ((routineIndex, templateId) in templateIds.withIndex()) {
+                val days = dayAssignments[routineIndex] ?: continue
+                for (dow in days) {
+                    val date = weekMonday.with(dow)
+                    if (week == 1 && date.isBefore(startDate)) continue
+                    if (date.isBefore(today)) continue
+
+                    val millis = date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                    repository.insertScheduledWorkout(
+                        com.workout.tracker.data.entity.ScheduledWorkout(
+                            templateId = templateId,
+                            scheduledDate = millis,
+                            label = phaseLabel
+                        )
+                    )
+                    scheduledCount++
+                }
+            }
+
+            if (phaseLabel != null && phaseLabel !in phaseLabels) phaseLabels.add(phaseLabel)
+        }
+
+        val phaseSummary = if (phaseLabels.isNotEmpty()) {
+            "\nPhases: ${phaseLabels.joinToString(", ")}"
+        } else ""
+
+        return "Scheduled $scheduledCount workouts across $weeks weeks (starting $startDate)$phaseSummary"
+    }
+
     private suspend fun generateScheduleWithDayAssignments(
         templateIds: List<Long>,
         weeks: Int,
@@ -802,25 +924,93 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
         return "Scheduled $scheduledCount workouts across $weeks weeks (starting $startDate)$phaseSummary"
     }
 
-    data class Phase(val label: String, val weekRange: IntRange)
+    data class Phase(
+        val label: String,
+        val weekRange: IntRange,
+        val anchorSetsOverride: Int? = null,
+        val accessorySetsOverride: Int? = null,
+        val affectedDays: List<Int>? = null // null = all days
+    )
 
     private fun parsePhases(text: String, totalWeeks: Int): List<Phase> {
+        return parsePhasesWithModifications(text, totalWeeks)
+    }
+
+    private fun parsePhasesWithModifications(text: String, totalWeeks: Int): List<Phase> {
         if (text.isBlank()) return emptyList()
         val phases = mutableListOf<Phase>()
 
-        // Match patterns like "Phase 1, Weeks 1-3 -- Foundation" or "Week 10 -- Deload"
+        // Split into phase blocks — each starts with a week/phase header
         val phaseRegex = Regex(
             "(?:Phase\\s*\\d+,?\\s*)?Weeks?\\s*(\\d+)(?:\\s*-\\s*(\\d+))?\\s*[-–—:]+\\s*(.+)",
             RegexOption.IGNORE_CASE
         )
-        for (line in text.lines()) {
-            val match = phaseRegex.find(line.trim()) ?: continue
+
+        for (match in phaseRegex.findAll(text)) {
             val startWeek = match.groupValues[1].toIntOrNull() ?: continue
             val endWeek = match.groupValues[2].toIntOrNull() ?: startWeek
-            val label = match.groupValues[3].trim().split(Regex("[.:]"))[0].trim()
-            phases.add(Phase(label, startWeek..endWeek))
+            val fullText = match.groupValues[3].trim()
+            val label = fullText.split(Regex("[.:]"))[0].trim()
+
+            // Parse structural modifications from the phase description
+            var anchorSetsOverride: Int? = null
+            var accessorySetsOverride: Int? = null
+            var affectedDays: List<Int>? = null
+
+            val lowerText = fullText.lowercase()
+
+            // "anchor sets to N" or "anchor sets to NxM"
+            val anchorSetsMatch = Regex("anchor\\s+sets\\s+to\\s+(\\d+)", RegexOption.IGNORE_CASE).find(fullText)
+            if (anchorSetsMatch != null) {
+                anchorSetsOverride = anchorSetsMatch.groupValues[1].toIntOrNull()
+            }
+            // "Drop anchor sets to NxM"
+            val dropAnchorMatch = Regex("(?:drop|reduce|cut)\\s+anchor\\s+sets\\s+to\\s+(\\d+)", RegexOption.IGNORE_CASE).find(fullText)
+            if (dropAnchorMatch != null) {
+                anchorSetsOverride = dropAnchorMatch.groupValues[1].toIntOrNull()
+            }
+            // "Increase anchor sets to N"
+            val increaseAnchorMatch = Regex("(?:increase|raise|bump)\\s+anchor\\s+sets\\s+to\\s+(\\d+)", RegexOption.IGNORE_CASE).find(fullText)
+            if (increaseAnchorMatch != null) {
+                anchorSetsOverride = increaseAnchorMatch.groupValues[1].toIntOrNull()
+            }
+
+            // "Accessories cut to N sets" or "Accessories... N sets"
+            val accessorySetsMatch = Regex("accessor(?:ies|y)\\s+(?:cut\\s+to|drop\\s+to|at|stay\\s+at)?\\s*(\\d+)\\s+sets", RegexOption.IGNORE_CASE).find(fullText)
+            if (accessorySetsMatch != null) {
+                accessorySetsOverride = accessorySetsMatch.groupValues[1].toIntOrNull()
+            }
+
+            // "on Day 1 and Day 2" or "on Day 1, Day 2"
+            val dayPattern = Regex("on\\s+Day\\s+(\\d+)(?:\\s*(?:and|,)\\s*Day\\s+(\\d+))*", RegexOption.IGNORE_CASE)
+            val dayMatch = dayPattern.find(fullText)
+            if (dayMatch != null) {
+                val days = Regex("Day\\s+(\\d+)", RegexOption.IGNORE_CASE).findAll(fullText)
+                    .map { (it.groupValues[1].toIntOrNull() ?: 1) - 1 } // 0-indexed
+                    .toList()
+                if (days.isNotEmpty()) affectedDays = days
+            }
+
+            phases.add(Phase(label, startWeek..endWeek, anchorSetsOverride, accessorySetsOverride, affectedDays))
         }
+
         return phases
+    }
+
+    private fun extractFullProgressionText(text: String): String {
+        // Extract everything after the routines — the full progression section
+        val markers = listOf(
+            Regex("\\d+-?\\s*Week\\s+Progression", RegexOption.IGNORE_CASE),
+            Regex("Progression\\s+Framework", RegexOption.IGNORE_CASE),
+            Regex("Phase\\s+1", RegexOption.IGNORE_CASE)
+        )
+        for (marker in markers) {
+            val match = marker.find(text)
+            if (match != null) {
+                return text.substring(match.range.first).trim()
+            }
+        }
+        return ""
     }
 
     companion object {
