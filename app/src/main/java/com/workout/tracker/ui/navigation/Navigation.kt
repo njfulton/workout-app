@@ -163,8 +163,7 @@ fun WorkoutNavHost(navController: NavHostController) {
         composable(Screen.RoutineBuilder.route) {
             RoutineBuilderScreen(
                 navController = navController,
-                templateViewModel = templateViewModel,
-                scheduleViewModel = scheduleViewModel
+                templateViewModel = templateViewModel
             )
         }
         composable(Screen.WeeklySummary.route) {

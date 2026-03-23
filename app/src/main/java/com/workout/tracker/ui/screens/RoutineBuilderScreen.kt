@@ -19,7 +19,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.workout.tracker.data.dao.TemplateWithExerciseCount
 import com.workout.tracker.ui.navigation.Screen
-import com.workout.tracker.ui.viewmodel.ScheduleViewModel
 import com.workout.tracker.ui.viewmodel.TemplateViewModel
 import java.time.*
 import java.time.format.TextStyle
@@ -29,8 +28,7 @@ import java.util.*
 @Composable
 fun RoutineBuilderScreen(
     navController: NavController,
-    templateViewModel: TemplateViewModel,
-    scheduleViewModel: ScheduleViewModel
+    templateViewModel: TemplateViewModel
 ) {
     val templates by templateViewModel.templates.collectAsStateWithLifecycle()
     val importResult by templateViewModel.importResult.collectAsStateWithLifecycle()
