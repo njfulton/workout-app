@@ -194,6 +194,9 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
             }
         }
 
+        // Strip trailing progression/phase text from the body before parsing exercises
+        bodyText = stripProgressionText(bodyText)
+
         // Split the body into individual exercise lines
         // The text may be all on one line, so split on exercise boundaries:
         // Each exercise starts with either a superset tag (A1, B2) or an exercise name followed by ":"
@@ -210,6 +213,22 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
         }
 
         return ParsedRoutine(routineName, description, exercises)
+    }
+
+    private fun stripProgressionText(body: String): String {
+        // Find where progression/phase text begins and cut it off
+        val markers = listOf(
+            Regex("\\d+-?\\s*Week\\s+Progression", RegexOption.IGNORE_CASE),
+            Regex("Progression\\s+Framework", RegexOption.IGNORE_CASE)
+        )
+        var cutoff = body.length
+        for (marker in markers) {
+            val match = marker.find(body)
+            if (match != null && match.range.first < cutoff) {
+                cutoff = match.range.first
+            }
+        }
+        return body.substring(0, cutoff).trim()
     }
 
     private fun isNonExerciseLine(line: String): Boolean {
@@ -241,21 +260,9 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
     }
 
     private fun splitSingleLineExercises(text: String): List<String> {
-        // Split before superset tags (A1, A2, B1, B2, etc.) that start a new exercise
-        // Pattern: rest time followed by a superset tag or a new exercise name with colon
         val result = mutableListOf<String>()
 
-        // Strategy: find all positions where a new exercise starts
-        // An exercise starts at: beginning, or before [A-Z]\d followed by a word
-        val exerciseStartPattern = Regex(
-            "(?<=\\s)([A-Z]\\d\\s+[A-Z])|" +  // superset tag like "A1 Incline"
-            "(?<=\\d+s\\s)([A-Z][a-z])|" +      // after rest time like "75s B"
-            "(?<=min\\s)([A-Z]\\d\\s)|" +        // after "min A1"
-            "(?<=min\\s)([A-Z][a-z])"            // after "min Barbell"
-        )
-
-        // More robust: split on the pattern "rest Xs" or "rest X min" followed by next exercise
-        // Each exercise ends with "rest \d+s" or "rest \d+ min"
+        // Split on the pattern "rest Xs" or "rest X min" — each exercise ends with a rest time
         val restPattern = Regex("rest\\s+\\d+\\s*(?:s(?:ec)?|min)", RegexOption.IGNORE_CASE)
         val restMatches = restPattern.findAll(text).toList()
 
