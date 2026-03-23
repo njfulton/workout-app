@@ -20,6 +20,9 @@ sealed class Screen(val route: String) {
     object History : Screen("history")
     object Schedule : Screen("schedule")
     object StartWorkout : Screen("start_workout")
+    object WorkoutDetail : Screen("workout_detail/{workoutLogId}") {
+        fun createRoute(workoutLogId: Long) = "workout_detail/$workoutLogId"
+    }
     object EditTemplate : Screen("edit_template/{templateId}") {
         fun createRoute(templateId: Long) = "edit_template/$templateId"
     }
@@ -96,6 +99,17 @@ fun WorkoutNavHost(navController: NavHostController) {
             HistoryScreen(
                 navController = navController,
                 viewModel = workoutViewModel
+            )
+        }
+        composable(
+            Screen.WorkoutDetail.route,
+            arguments = listOf(navArgument("workoutLogId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val workoutLogId = backStackEntry.arguments?.getLong("workoutLogId") ?: return@composable
+            WorkoutDetailScreen(
+                navController = navController,
+                viewModel = workoutViewModel,
+                workoutLogId = workoutLogId
             )
         }
         composable(Screen.Schedule.route) {

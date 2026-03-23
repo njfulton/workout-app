@@ -72,6 +72,19 @@ data class ActiveWorkoutState(
         get() = groups.getOrNull(currentGroupIndex)
 }
 
+data class WorkoutDetailExercise(
+    val exerciseName: String,
+    val sets: List<SetLog>,
+    val supersetGroup: Int?
+)
+
+data class WorkoutDetail(
+    val workoutLog: WorkoutLog,
+    val exercises: List<WorkoutDetailExercise>,
+    val totalVolume: Double,
+    val totalSets: Int
+)
+
 class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() {
 
     private val _activeWorkout = MutableStateFlow(ActiveWorkoutState())
@@ -293,6 +306,37 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
             val ringtone = RingtoneManager.getRingtone(context, uri)
             ringtone?.play()
         } catch (_: Exception) { }
+    }
+
+    // Workout detail
+    private val _workoutDetail = MutableStateFlow<WorkoutDetail?>(null)
+    val workoutDetail: StateFlow<WorkoutDetail?> = _workoutDetail
+
+    fun loadWorkoutDetail(workoutLogId: Long) {
+        viewModelScope.launch {
+            val log = repository.getWorkoutLogById(workoutLogId) ?: return@launch
+            val exerciseLogs = repository.getExerciseLogs(workoutLogId)
+            val exercises = exerciseLogs.map { el ->
+                val exercise = repository.getExerciseById(el.exerciseId)
+                val sets = repository.getSetLogs(el.id)
+                WorkoutDetailExercise(
+                    exerciseName = exercise?.name ?: "Unknown",
+                    sets = sets,
+                    supersetGroup = el.supersetGroup
+                )
+            }
+            val totalSets = exercises.sumOf { it.sets.count { s -> !s.isWarmup } }
+            val totalVolume = exercises.sumOf { ex ->
+                ex.sets.filter { !it.isWarmup }.sumOf { s ->
+                    (s.weightLbs ?: 0.0) * (s.reps ?: 0)
+                }
+            }
+            _workoutDetail.value = WorkoutDetail(log, exercises, totalVolume, totalSets)
+        }
+    }
+
+    fun clearWorkoutDetail() {
+        _workoutDetail.value = null
     }
 
     fun exportToCsv(onResult: (String) -> Unit) {

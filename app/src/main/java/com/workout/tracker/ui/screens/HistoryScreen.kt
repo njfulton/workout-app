@@ -16,6 +16,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.workout.tracker.data.entity.WorkoutType
+import com.workout.tracker.ui.navigation.Screen
 import com.workout.tracker.ui.viewmodel.WorkoutViewModel
 import java.io.File
 import java.text.SimpleDateFormat
@@ -86,7 +87,10 @@ fun HistoryScreen(
                         Text(date, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(vertical = 4.dp))
                     }
                     items(dayWorkouts) { workout ->
-                        Card(modifier = Modifier.fillMaxWidth()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { navController.navigate(Screen.WorkoutDetail.createRoute(workout.id)) }
+                        ) {
                             Row(
                                 modifier = Modifier.padding(16.dp),
                                 verticalAlignment = Alignment.CenterVertically

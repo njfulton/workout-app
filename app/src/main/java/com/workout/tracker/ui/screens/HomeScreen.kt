@@ -193,7 +193,10 @@ fun HomeScreen(
                     Text("Recent Workouts", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 }
                 items(recentWorkouts.take(5)) { workout ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { navController.navigate(Screen.WorkoutDetail.createRoute(workout.id)) }
+                    ) {
                         Row(
                             modifier = Modifier.padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
