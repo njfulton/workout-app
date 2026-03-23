@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -63,7 +64,7 @@ fun HomeScreen(
                                 Text("Workout in Progress", style = MaterialTheme.typography.titleMedium)
                                 Text(activeWorkout.workoutLog?.name ?: "", style = MaterialTheme.typography.bodySmall)
                             }
-                            Icon(Icons.Default.ArrowForward, contentDescription = "Continue")
+                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Continue")
                         }
                     }
                 }

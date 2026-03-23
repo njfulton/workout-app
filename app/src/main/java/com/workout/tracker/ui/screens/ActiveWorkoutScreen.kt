@@ -11,6 +11,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -97,7 +100,7 @@ fun ActiveWorkoutScreen(
                 },
                 actions = {
                     IconButton(onClick = { showExerciseList = true }) {
-                        Icon(Icons.Default.List, contentDescription = "Exercise List")
+                        Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Exercise List")
                     }
                     TextButton(onClick = { showFinishConfirm = true }) {
                         Text("Finish", color = MaterialTheme.colorScheme.primary)
@@ -136,7 +139,7 @@ fun ActiveWorkoutScreen(
                         ) {
                             Text("Next")
                             Spacer(Modifier.width(4.dp))
-                            Icon(Icons.Default.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
                         }
                     }
                 }
@@ -359,7 +362,7 @@ fun FocusedExerciseCard(
                     Spacer(Modifier.height(4.dp))
                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
                         Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.TrendingUp, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
                             Text(suggestion.reason, style = MaterialTheme.typography.bodySmall)
                         }
@@ -570,7 +573,7 @@ fun FocusedSupersetCard(
                     if (suggestion.suggestedWeight > suggestion.currentWeight) {
                         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
                             Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.TrendingUp, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(4.dp))
                                 Text(suggestion.reason, style = MaterialTheme.typography.bodySmall)
                             }
