@@ -125,23 +125,16 @@ fun ImportRoutineDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "Paste a routine from AI. Example format:",
+                    "Paste routines from AI. Supports supersets (A1/A2), rep ranges (4x6-8), rest times (rest 2 min), and multi-routine programs with auto-scheduling.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                    Text(
-                        "Routine: Push Day\n---\nBench Press: 4x8 rest 90s\nIncline DB Press: 3x10 rest 60s\nCable Fly: 3x12 rest 45s",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(8.dp)
-                    )
-                }
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = it },
-                    label = { Text("Paste routine here") },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 150.dp),
-                    maxLines = 20
+                    label = { Text("Paste routine(s) here") },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp),
+                    maxLines = 30
                 )
             }
         },
