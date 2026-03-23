@@ -7,6 +7,22 @@ import com.workout.tracker.data.entity.WorkoutLog
 import com.workout.tracker.data.entity.WorkoutType
 import kotlinx.coroutines.flow.Flow
 
+data class ExportRow(
+    val workoutId: Long,
+    val workoutName: String,
+    val workoutType: WorkoutType,
+    val startTime: Long,
+    val endTime: Long?,
+    val exerciseName: String,
+    val orderIndex: Int,
+    val setNumber: Int,
+    val reps: Int?,
+    val weightLbs: Double?,
+    val durationSeconds: Int?,
+    val distanceMiles: Double?,
+    val isWarmup: Boolean
+)
+
 data class ExerciseHistoryEntry(
     val startTime: Long,
     val setNumber: Int,
@@ -82,6 +98,18 @@ interface WorkoutLogDao {
         LIMIT :limit
     """)
     suspend fun getExerciseHistory(exerciseId: Long, limit: Int = 50): List<ExerciseHistoryEntry>
+
+    @Query("""
+        SELECT w.id as workoutId, w.name as workoutName, w.workoutType, w.startTime, w.endTime,
+               e.name as exerciseName, el.orderIndex,
+               sl.setNumber, sl.reps, sl.weightLbs, sl.durationSeconds, sl.distanceMiles, sl.isWarmup
+        FROM workout_logs w
+        INNER JOIN exercise_logs el ON w.id = el.workoutLogId
+        INNER JOIN exercises e ON el.exerciseId = e.id
+        INNER JOIN set_logs sl ON el.id = sl.exerciseLogId
+        ORDER BY w.startTime DESC, el.orderIndex ASC, sl.setNumber ASC
+    """)
+    suspend fun getAllDataForExport(): List<ExportRow>
 
     @Insert
     suspend fun insertWorkoutLog(workoutLog: WorkoutLog): Long

@@ -161,6 +161,29 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
         _restTimerSeconds.value = 0
     }
 
+    fun exportToCsv(onResult: (String) -> Unit) {
+        viewModelScope.launch {
+            val rows = repository.getAllDataForExport()
+            val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US)
+            val sb = StringBuilder()
+            sb.appendLine("Date,Workout Name,Type,Duration (min),Exercise,Set,Reps,Weight (lbs),Duration (sec),Distance (mi),Warmup")
+            for (row in rows) {
+                val date = dateFormat.format(java.util.Date(row.startTime))
+                val duration = if (row.endTime != null) (row.endTime - row.startTime) / 60000 else ""
+                val weight = row.weightLbs?.let { "%.1f".format(it) } ?: ""
+                val dist = row.distanceMiles?.let { "%.2f".format(it) } ?: ""
+                val dur = row.durationSeconds?.toString() ?: ""
+                val reps = row.reps?.toString() ?: ""
+                val warmup = if (row.isWarmup) "Yes" else ""
+                // Escape exercise/workout names that might contain commas
+                val name = "\"${row.workoutName}\""
+                val exercise = "\"${row.exerciseName}\""
+                sb.appendLine("$date,$name,${row.workoutType},$duration,$exercise,${row.setNumber},$reps,$weight,$dur,$dist,$warmup")
+            }
+            onResult(sb.toString())
+        }
+    }
+
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {

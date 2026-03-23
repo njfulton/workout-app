@@ -1,5 +1,6 @@
 package com.workout.tracker.ui.screens
 
+import android.content.Intent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -9,11 +10,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.workout.tracker.data.entity.WorkoutType
 import com.workout.tracker.ui.viewmodel.WorkoutViewModel
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -26,6 +30,7 @@ fun HistoryScreen(
     val workouts by viewModel.workoutHistory.collectAsStateWithLifecycle()
     val dateFormat = remember { SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault()) }
     val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -34,6 +39,26 @@ fun HistoryScreen(
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    if (workouts.isNotEmpty()) {
+                        IconButton(onClick = {
+                            viewModel.exportToCsv { csv ->
+                                val fileName = "workout_export_${SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())}.csv"
+                                val file = File(context.cacheDir, fileName)
+                                file.writeText(csv)
+                                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/csv"
+                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(Intent.createChooser(intent, "Export Workout History"))
+                            }
+                        }) {
+                            Icon(Icons.Default.FileDownload, contentDescription = "Export CSV")
+                        }
                     }
                 }
             )

@@ -255,6 +255,7 @@ fun MoveDateDialog(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScheduleWorkoutDialog(
     templates: List<TemplateWithExerciseCount>,
