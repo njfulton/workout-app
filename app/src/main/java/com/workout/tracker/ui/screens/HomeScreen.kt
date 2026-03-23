@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -166,7 +167,7 @@ fun HomeScreen(
                             }
                             if (scheduled.isCompleted || scheduled.isSkipped) {
                                 IconButton(onClick = { scheduleViewModel.markUncompleted(scheduled) }) {
-                                    Icon(Icons.Default.Undo, contentDescription = "Mark Incomplete", modifier = Modifier.size(20.dp))
+                                    Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Mark Incomplete", modifier = Modifier.size(20.dp))
                                 }
                             } else if (scheduled.templateId != null) {
                                 FilledTonalButton(
