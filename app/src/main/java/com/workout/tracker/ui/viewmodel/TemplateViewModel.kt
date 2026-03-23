@@ -152,58 +152,120 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
     }
 
     private fun extractProgressionText(text: String): String {
-        // Find lines containing phase/week/deload info
-        return text.lines()
-            .filter { line ->
-                val lower = line.lowercase().trim()
-                lower.startsWith("phase") || lower.startsWith("week") ||
-                    lower.contains("deload", ignoreCase = true)
-            }
-            .joinToString("\n")
+        // Extract phase/week info — handles both multi-line and inline formats
+        val phasePattern = Regex(
+            "(?:Phase\\s*\\d+,?\\s*)?Weeks?\\s*\\d+(?:\\s*-\\s*\\d+)?\\s*[-–—:]+\\s*\\w+",
+            RegexOption.IGNORE_CASE
+        )
+        val matches = phasePattern.findAll(text).map { it.value }.toList()
+        return matches.joinToString("\n")
     }
 
     private fun splitIntoRoutineBlocks(text: String): List<String> {
-        // Split on "Routine:" boundaries
+        // Split on "Routine:" boundaries — works whether newline-separated or inline
         val parts = text.split(Regex("(?=Routine:)", RegexOption.IGNORE_CASE))
             .map { it.trim() }
-            .filter { it.isNotEmpty() }
+            .filter { it.isNotEmpty() && it.startsWith("Routine", ignoreCase = true) }
+
+        if (parts.isNotEmpty()) return parts
 
         // If no "Routine:" prefix found, treat entire text as one block
-        if (parts.isEmpty() || !parts[0].startsWith("Routine", ignoreCase = true)) {
-            return if (text.isNotBlank()) listOf(text) else emptyList()
-        }
-        return parts
+        return if (text.isNotBlank()) listOf(text) else emptyList()
     }
 
     private fun parseRoutineBlock(block: String): ParsedRoutine {
-        val lines = block.lines().map { it.trim() }.filter { it.isNotEmpty() }
-        if (lines.isEmpty()) return ParsedRoutine("Imported Routine", null, emptyList())
-
+        // First, extract the routine name from the "Routine: ..." header
         var routineName = "Imported Routine"
         var description: String? = null
-        val exercises = mutableListOf<ParsedExercise>()
+        var bodyText = block
 
-        for (line in lines) {
-            val lower = line.lowercase()
-            when {
-                lower.startsWith("routine:") || lower.startsWith("name:") -> {
-                    routineName = line.substringAfter(":").trim()
-                        .removePrefix("---").removeSuffix("---").trim()
-                }
-                lower.startsWith("description:") -> {
-                    description = line.substringAfter(":").trim()
-                }
-                line.startsWith("---") || line.startsWith("===") -> continue
-                line.startsWith("#") || line.startsWith("//") -> continue
-                lower.startsWith("phase") || lower.startsWith("week") || lower.startsWith("progression") -> continue
-                else -> {
-                    val parsed = parseExerciseLine(line)
-                    if (parsed != null) exercises.add(parsed)
-                }
+        val routineHeaderMatch = Regex("^Routine:\\s*(.+?)---", RegexOption.IGNORE_CASE).find(block)
+        if (routineHeaderMatch != null) {
+            routineName = routineHeaderMatch.groupValues[1].trim()
+            bodyText = block.substring(routineHeaderMatch.range.last + 1).trim()
+        } else {
+            // Try multi-line format
+            val lines = block.lines()
+            val firstLine = lines.firstOrNull()?.trim() ?: ""
+            if (firstLine.startsWith("Routine:", ignoreCase = true) || firstLine.startsWith("Name:", ignoreCase = true)) {
+                routineName = firstLine.substringAfter(":").trim()
+                    .removePrefix("---").removeSuffix("---").trim()
+                bodyText = lines.drop(1).joinToString("\n")
             }
         }
 
+        // Split the body into individual exercise lines
+        // The text may be all on one line, so split on exercise boundaries:
+        // Each exercise starts with either a superset tag (A1, B2) or an exercise name followed by ":"
+        val exerciseLines = splitIntoExerciseLines(bodyText)
+
+        val exercises = mutableListOf<ParsedExercise>()
+        for (line in exerciseLines) {
+            val trimmed = line.trim()
+            if (trimmed.isEmpty()) continue
+            val lower = trimmed.lowercase()
+            // Skip non-exercise lines
+            if (lower.startsWith("phase") || lower.startsWith("week") ||
+                lower.startsWith("progression") || lower.startsWith("---") ||
+                lower.startsWith("===") || lower.startsWith("#") ||
+                lower.startsWith("//") || lower.startsWith("description:")) continue
+
+            val parsed = parseExerciseLine(trimmed)
+            if (parsed != null) exercises.add(parsed)
+        }
+
         return ParsedRoutine(routineName, description, exercises)
+    }
+
+    private fun splitIntoExerciseLines(text: String): List<String> {
+        // First try: if text has multiple lines, use those
+        val rawLines = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        if (rawLines.size > 1) {
+            // Multi-line format — but each line might still contain multiple exercises
+            return rawLines.flatMap { splitSingleLineExercises(it) }
+        }
+        // Single line (or single block) — split on exercise boundaries
+        return splitSingleLineExercises(text)
+    }
+
+    private fun splitSingleLineExercises(text: String): List<String> {
+        // Split before superset tags (A1, A2, B1, B2, etc.) that start a new exercise
+        // Pattern: rest time followed by a superset tag or a new exercise name with colon
+        val result = mutableListOf<String>()
+
+        // Strategy: find all positions where a new exercise starts
+        // An exercise starts at: beginning, or before [A-Z]\d followed by a word
+        val exerciseStartPattern = Regex(
+            "(?<=\\s)([A-Z]\\d\\s+[A-Z])|" +  // superset tag like "A1 Incline"
+            "(?<=\\d+s\\s)([A-Z][a-z])|" +      // after rest time like "75s B"
+            "(?<=min\\s)([A-Z]\\d\\s)|" +        // after "min A1"
+            "(?<=min\\s)([A-Z][a-z])"            // after "min Barbell"
+        )
+
+        // More robust: split on the pattern "rest Xs" or "rest X min" followed by next exercise
+        // Each exercise ends with "rest \d+s" or "rest \d+ min"
+        val restPattern = Regex("rest\\s+\\d+\\s*(?:s(?:ec)?|min)", RegexOption.IGNORE_CASE)
+        val restMatches = restPattern.findAll(text).toList()
+
+        if (restMatches.isEmpty()) {
+            // No rest patterns found — try splitting on newlines or return as-is
+            return text.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        }
+
+        var lastEnd = 0
+        for (match in restMatches) {
+            val exerciseEnd = match.range.last + 1
+            val exerciseLine = text.substring(lastEnd, exerciseEnd).trim()
+            if (exerciseLine.isNotEmpty()) result.add(exerciseLine)
+            lastEnd = exerciseEnd
+        }
+        // Any remaining text after last rest
+        if (lastEnd < text.length) {
+            val remaining = text.substring(lastEnd).trim()
+            if (remaining.isNotEmpty()) result.add(remaining)
+        }
+
+        return result
     }
 
     private fun parseExerciseLine(line: String): ParsedExercise? {

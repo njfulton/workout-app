@@ -108,6 +108,7 @@ fun ScheduleItemCard(
     val isCardio = item.label?.lowercase()?.contains("cardio") == true
     val isDone = item.isCompleted || item.isSkipped
     var showMoveDialog by remember { mutableStateOf(false) }
+    var showCompleteDialog by remember { mutableStateOf(false) }
 
     val icon = when {
         isRestDay -> Icons.Default.Hotel
@@ -192,9 +193,9 @@ fun ScheduleItemCard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Complete button
+                    // Complete button — opens dialog with date picker
                     FilledTonalButton(
-                        onClick = { scheduleViewModel.markCompleted(item) },
+                        onClick = { showCompleteDialog = true },
                         modifier = Modifier.weight(1f),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                     ) {
@@ -238,6 +239,112 @@ fun ScheduleItemCard(
                 showMoveDialog = false
             }
         )
+    }
+
+    if (showCompleteDialog) {
+        MarkCompletedDialog(
+            item = item,
+            onDismiss = { showCompleteDialog = false },
+            onComplete = { completedDate ->
+                scheduleViewModel.markCompletedOnDate(item, completedDate)
+                showCompleteDialog = false
+            },
+            onCompleteWithWorkout = { completedDate ->
+                // Start a workout so user can log weights/reps, then mark completed
+                if (item.templateId != null) {
+                    workoutViewModel.startWorkout(
+                        name = item.templateName ?: "Workout",
+                        type = WorkoutType.STRENGTH,
+                        templateId = item.templateId
+                    )
+                    scheduleViewModel.markCompletedOnDate(item, completedDate)
+                    navController.navigate(Screen.ActiveWorkout.route) {
+                        popUpTo(Screen.Home.route)
+                    }
+                }
+                showCompleteDialog = false
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MarkCompletedDialog(
+    item: ScheduledWorkoutWithTemplate,
+    onDismiss: () -> Unit,
+    onComplete: (LocalDate) -> Unit,
+    onCompleteWithWorkout: (LocalDate) -> Unit
+) {
+    val displayName = item.templateName ?: item.label ?: "Workout"
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    val dateFormat = remember { SimpleDateFormat("EEE, MMM d", Locale.getDefault()) }
+    val displayDate = dateFormat.format(
+        Date.from(selectedDate.atStartOfDay(ZoneId.systemDefault()).toInstant())
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Mark Completed") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("When did you complete \"$displayName\"?")
+
+                OutlinedButton(
+                    onClick = { showDatePicker = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(displayDate)
+                }
+
+                if (item.templateId != null) {
+                    Text(
+                        "Want to log your weights and reps?",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedButton(
+                        onClick = { onCompleteWithWorkout(selectedDate) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Log Weights & Reps")
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onComplete(selectedDate) }) {
+                Text("Mark Done (Skip Logging)")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = selectedDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        selectedDate = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+                    }
+                    showDatePicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancel") } }
+        ) {
+            DatePicker(state = datePickerState)
+        }
     }
 }
 

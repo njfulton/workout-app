@@ -43,6 +43,19 @@ class ScheduleViewModel(private val repository: WorkoutRepository) : ViewModel()
         }
     }
 
+    fun markCompletedOnDate(sw: ScheduledWorkoutWithTemplate, completedDate: LocalDate) {
+        viewModelScope.launch {
+            val millis = completedDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            repository.updateScheduledWorkout(
+                sw.toEntity().copy(
+                    isCompleted = true,
+                    isSkipped = false,
+                    scheduledDate = millis
+                )
+            )
+        }
+    }
+
     fun markSkipped(sw: ScheduledWorkoutWithTemplate) {
         viewModelScope.launch {
             repository.updateScheduledWorkout(sw.toEntity().copy(isSkipped = true, isCompleted = false))

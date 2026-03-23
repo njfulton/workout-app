@@ -22,12 +22,9 @@ fun ImportRoutineScreen(
     templateViewModel: TemplateViewModel
 ) {
     var routineText by remember { mutableStateOf("") }
-    var completedToday by remember { mutableStateOf(false) }
-    var completedDayNumber by remember { mutableStateOf("1") }
     var isImporting by remember { mutableStateOf(false) }
     val importResult by templateViewModel.importResult.collectAsStateWithLifecycle()
 
-    // When import finishes, stop the spinner
     LaunchedEffect(importResult) {
         if (importResult != null) isImporting = false
     }
@@ -53,12 +50,12 @@ fun ImportRoutineScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                "Paste your AI-generated routine below",
+                "Paste your routine below",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                "Supports multiple days with exercises, sets x reps, rest times, supersets (A1/A2), and progression phases.",
+                "Supports multiple days, sets x reps, rest times, supersets (A1/A2), and progression phases. Creates templates and builds your schedule automatically.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -71,38 +68,11 @@ fun ImportRoutineScreen(
                 maxLines = 50
             )
 
-            // Completed today option
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(
-                            checked = completedToday,
-                            onCheckedChange = { completedToday = it }
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text("I already completed a workout today")
-                    }
-                    if (completedToday) {
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = completedDayNumber,
-                            onValueChange = { completedDayNumber = it },
-                            label = { Text("Which day? (e.g. 1 for Day 1)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-                    }
-                }
-            }
-
             Button(
                 onClick = {
                     isImporting = true
                     templateViewModel.clearImportResult()
-                    val completedIndex = if (completedToday) {
-                        (completedDayNumber.toIntOrNull() ?: 1) - 1 // 0-based
-                    } else null
-                    templateViewModel.importRoutineFromText(routineText, completedIndex)
+                    templateViewModel.importRoutineFromText(routineText)
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = routineText.isNotBlank() && !isImporting
@@ -144,29 +114,18 @@ fun ImportRoutineScreen(
                             )
                         }
                         Spacer(Modifier.height(8.dp))
-                        Text(
-                            importResult!!,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                        Text(importResult!!, style = MaterialTheme.typography.bodyMedium)
                         if (!isError) {
                             Spacer(Modifier.height(12.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton(onClick = {
                                     templateViewModel.clearImportResult()
-                                    navController.navigate("schedule") {
-                                        popUpTo("home")
-                                    }
-                                }) {
-                                    Text("View Schedule")
-                                }
+                                    navController.navigate("schedule") { popUpTo("home") }
+                                }) { Text("View Schedule") }
                                 OutlinedButton(onClick = {
                                     templateViewModel.clearImportResult()
-                                    navController.navigate("templates") {
-                                        popUpTo("home")
-                                    }
-                                }) {
-                                    Text("View Templates")
-                                }
+                                    navController.navigate("templates") { popUpTo("home") }
+                                }) { Text("View Templates") }
                             }
                         }
                     }
