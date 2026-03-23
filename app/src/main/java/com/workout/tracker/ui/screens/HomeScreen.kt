@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -101,7 +102,7 @@ fun HomeScreen(
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     QuickActionCard(Modifier.weight(1f), Icons.Default.FitnessCenter, "Exercises") { navController.navigate(Screen.Exercises.route) }
-                    QuickActionCard(Modifier.weight(1f), Icons.Default.ViewList, "Templates") { navController.navigate(Screen.Templates.route) }
+                    QuickActionCard(Modifier.weight(1f), Icons.AutoMirrored.Filled.ViewList, "Templates") { navController.navigate(Screen.Templates.route) }
                     QuickActionCard(Modifier.weight(1f), Icons.Default.FileDownload, "Import") { navController.navigate(Screen.ImportRoutine.route) }
                 }
             }
