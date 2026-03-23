@@ -82,10 +82,15 @@ fun ActiveWorkoutScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = {
-                    Column {
-                        Text(activeWorkout.workoutLog?.name ?: "Workout")
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            activeWorkout.workoutLog?.name ?: "Workout",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
                         Text(
                             elapsedStr,
                             style = MaterialTheme.typography.labelMedium,
@@ -94,14 +99,11 @@ fun ActiveWorkoutScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
                     IconButton(onClick = { showExerciseList = true }) {
                         Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Exercise List")
                     }
+                },
+                actions = {
                     TextButton(onClick = { showFinishConfirm = true }) {
                         Text("Finish", color = MaterialTheme.colorScheme.primary)
                     }
