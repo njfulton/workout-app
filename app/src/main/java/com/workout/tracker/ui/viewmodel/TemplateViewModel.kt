@@ -98,7 +98,7 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
             try {
                 val result = parseAndImportRoutines(text, completedTodayIndex)
                 _importResult.value = result
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 _importResult.value = "Import failed: ${e.message}"
             }
         }
@@ -203,18 +203,30 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
         for (line in exerciseLines) {
             val trimmed = line.trim()
             if (trimmed.isEmpty()) continue
-            val lower = trimmed.lowercase()
-            // Skip non-exercise lines
-            if (lower.startsWith("phase") || lower.startsWith("week") ||
-                lower.startsWith("progression") || lower.startsWith("---") ||
-                lower.startsWith("===") || lower.startsWith("#") ||
-                lower.startsWith("//") || lower.startsWith("description:")) continue
+            if (isNonExerciseLine(trimmed)) continue
 
             val parsed = parseExerciseLine(trimmed)
             if (parsed != null) exercises.add(parsed)
         }
 
         return ParsedRoutine(routineName, description, exercises)
+    }
+
+    private fun isNonExerciseLine(line: String): Boolean {
+        val lower = line.lowercase().trim()
+        // Skip progression/phase/meta lines
+        if (lower.startsWith("phase") || lower.startsWith("week") ||
+            lower.startsWith("progression") || lower.startsWith("---") ||
+            lower.startsWith("===") || lower.startsWith("#") ||
+            lower.startsWith("//") || lower.startsWith("description:")) return true
+        // Skip lines that start with a number followed by "-week" (e.g. "10-Week Progression")
+        if (Regex("^\\d+-?\\s*week", RegexOption.IGNORE_CASE).containsMatchIn(lower)) return true
+        // Skip lines mentioning RPE, RIR, deload, etc. without a sets x reps pattern
+        if ((lower.contains("rpe") || lower.contains("rir") || lower.contains("deload") ||
+            lower.contains("progression framework") || lower.contains("priority is") ||
+            lower.contains("expect to")) &&
+            !Regex("\\d+\\s*[xX×]\\s*\\d+").containsMatchIn(line)) return true
+        return false
     }
 
     private fun splitIntoExerciseLines(text: String): List<String> {
@@ -394,7 +406,8 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
                 isCustom = true
             )
         )
-        return repository.getExerciseById(id)!!
+        return repository.getExerciseById(id)
+            ?: throw IllegalStateException("Failed to create exercise: $name")
     }
 
     private fun detectWeekCount(text: String): Int {
