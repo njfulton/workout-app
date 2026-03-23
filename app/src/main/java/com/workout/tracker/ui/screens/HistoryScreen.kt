@@ -86,8 +86,12 @@ fun HistoryScreen(
                                             append("${workout.exerciseCount} exercises")
                                             append(" • ${timeFormat.format(Date(workout.startTime))}")
                                             if (workout.endTime != null) {
-                                                val durationMin = (workout.endTime - workout.startTime) / 60000
-                                                append(" • ${durationMin}min")
+                                                val totalMin = (workout.endTime - workout.startTime) / 60000
+                                                if (totalMin >= 60) {
+                                                    append(" • ${totalMin / 60}h ${totalMin % 60}m")
+                                                } else {
+                                                    append(" • ${totalMin}m")
+                                                }
                                             }
                                         },
                                         style = MaterialTheme.typography.bodySmall,

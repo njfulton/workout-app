@@ -32,10 +32,32 @@ fun ActiveWorkoutScreen(
     var showExercisePicker by remember { mutableStateOf(false) }
     var showFinishConfirm by remember { mutableStateOf(false) }
 
+    // Elapsed workout timer
+    val startTime = activeWorkout.workoutLog?.startTime ?: System.currentTimeMillis()
+    var elapsedSeconds by remember { mutableStateOf(0L) }
+    LaunchedEffect(startTime) {
+        while (true) {
+            elapsedSeconds = (System.currentTimeMillis() - startTime) / 1000
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+    val elapsedMinutes = elapsedSeconds / 60
+    val elapsedSecs = elapsedSeconds % 60
+    val elapsedStr = "${elapsedMinutes}:${elapsedSecs.toString().padStart(2, '0')}"
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(activeWorkout.workoutLog?.name ?: "Workout") },
+                title = {
+                    Column {
+                        Text(activeWorkout.workoutLog?.name ?: "Workout")
+                        Text(
+                            elapsedStr,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
