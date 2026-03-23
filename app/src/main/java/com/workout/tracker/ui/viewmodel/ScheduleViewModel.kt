@@ -37,35 +37,40 @@ class ScheduleViewModel(private val repository: WorkoutRepository) : ViewModel()
         }
     }
 
-    fun markCompleted(scheduledWorkout: ScheduledWorkoutWithTemplate, workoutLogId: Long) {
+    fun markCompleted(sw: ScheduledWorkoutWithTemplate) {
         viewModelScope.launch {
-            repository.updateScheduledWorkout(
-                ScheduledWorkout(
-                    id = scheduledWorkout.id,
-                    templateId = scheduledWorkout.templateId,
-                    scheduledDate = scheduledWorkout.scheduledDate,
-                    isCompleted = true,
-                    completedWorkoutLogId = workoutLogId,
-                    label = scheduledWorkout.label
-                )
-            )
+            repository.updateScheduledWorkout(sw.toEntity().copy(isCompleted = true, isSkipped = false))
+        }
+    }
+
+    fun markSkipped(sw: ScheduledWorkoutWithTemplate) {
+        viewModelScope.launch {
+            repository.updateScheduledWorkout(sw.toEntity().copy(isSkipped = true, isCompleted = false))
+        }
+    }
+
+    fun reschedule(sw: ScheduledWorkoutWithTemplate, newDate: LocalDate) {
+        viewModelScope.launch {
+            val millis = newDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            repository.updateScheduledWorkout(sw.toEntity().copy(scheduledDate = millis, isSkipped = false, isCompleted = false))
         }
     }
 
     fun deleteScheduledWorkout(sw: ScheduledWorkoutWithTemplate) {
         viewModelScope.launch {
-            repository.deleteScheduledWorkout(
-                ScheduledWorkout(
-                    id = sw.id,
-                    templateId = sw.templateId,
-                    scheduledDate = sw.scheduledDate,
-                    isCompleted = sw.isCompleted,
-                    completedWorkoutLogId = sw.completedWorkoutLogId,
-                    label = sw.label
-                )
-            )
+            repository.deleteScheduledWorkout(sw.toEntity())
         }
     }
+
+    private fun ScheduledWorkoutWithTemplate.toEntity() = ScheduledWorkout(
+        id = id,
+        templateId = templateId,
+        scheduledDate = scheduledDate,
+        isCompleted = isCompleted,
+        completedWorkoutLogId = completedWorkoutLogId,
+        label = label,
+        isSkipped = isSkipped
+    )
 
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {

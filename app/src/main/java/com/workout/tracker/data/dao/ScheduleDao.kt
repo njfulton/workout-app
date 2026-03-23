@@ -11,14 +11,15 @@ data class ScheduledWorkoutWithTemplate(
     val scheduledDate: Long,
     val isCompleted: Boolean,
     val completedWorkoutLogId: Long?,
-    val label: String?
+    val label: String?,
+    val isSkipped: Boolean
 )
 
 @Dao
 interface ScheduleDao {
     @Query("""
         SELECT s.id, s.templateId, t.name as templateName, s.scheduledDate,
-               s.isCompleted, s.completedWorkoutLogId, s.label
+               s.isCompleted, s.completedWorkoutLogId, s.label, s.isSkipped
         FROM scheduled_workouts s
         LEFT JOIN workout_templates t ON s.templateId = t.id
         WHERE s.scheduledDate >= :fromDate
@@ -28,7 +29,7 @@ interface ScheduleDao {
 
     @Query("""
         SELECT s.id, s.templateId, t.name as templateName, s.scheduledDate,
-               s.isCompleted, s.completedWorkoutLogId, s.label
+               s.isCompleted, s.completedWorkoutLogId, s.label, s.isSkipped
         FROM scheduled_workouts s
         LEFT JOIN workout_templates t ON s.templateId = t.id
         WHERE s.scheduledDate >= :startDate AND s.scheduledDate <= :endDate

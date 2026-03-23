@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -64,7 +65,7 @@ fun ScheduleScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(schedule) { item ->
+                items(schedule, key = { it.id }) { item ->
                     ScheduleItemCard(item, dateFormat, scheduleViewModel)
                 }
             }
@@ -96,6 +97,8 @@ fun ScheduleItemCard(
     val displayName = item.templateName ?: item.label ?: "Unknown"
     val isRestDay = item.label?.lowercase()?.contains("rest") == true
     val isCardio = item.label?.lowercase()?.contains("cardio") == true
+    val isDone = item.isCompleted || item.isSkipped
+    var showMoveDialog by remember { mutableStateOf(false) }
 
     val icon = when {
         isRestDay -> Icons.Default.Hotel
@@ -106,6 +109,7 @@ fun ScheduleItemCard(
 
     val containerColor = when {
         item.isCompleted -> MaterialTheme.colorScheme.secondaryContainer
+        item.isSkipped -> MaterialTheme.colorScheme.surfaceVariant
         isRestDay -> MaterialTheme.colorScheme.tertiaryContainer
         else -> MaterialTheme.colorScheme.surfaceVariant
     }
@@ -114,29 +118,141 @@ fun ScheduleItemCard(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = containerColor)
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(displayName, style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    dateFormat.format(Date(item.scheduledDate)),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp))
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        displayName,
+                        style = MaterialTheme.typography.bodyLarge,
+                        textDecoration = if (item.isSkipped) TextDecoration.LineThrough else TextDecoration.None
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            dateFormat.format(Date(item.scheduledDate)),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (item.isCompleted) {
+                            Spacer(Modifier.width(8.dp))
+                            Text("Done", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        } else if (item.isSkipped) {
+                            Spacer(Modifier.width(8.dp))
+                            Text("Skipped", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+
+                if (item.isCompleted) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = "Completed", tint = MaterialTheme.colorScheme.primary)
+                } else if (item.isSkipped) {
+                    Icon(Icons.Default.Cancel, contentDescription = "Skipped", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(24.dp))
+                }
             }
-            if (item.isCompleted) {
-                Icon(Icons.Default.CheckCircle, contentDescription = "Completed", tint = MaterialTheme.colorScheme.primary)
-            } else {
-                IconButton(onClick = { scheduleViewModel.deleteScheduledWorkout(item) }) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+
+            // Action buttons for non-completed items
+            if (!isDone) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Complete button
+                    FilledTonalButton(
+                        onClick = { scheduleViewModel.markCompleted(item) },
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Done", style = MaterialTheme.typography.labelMedium)
+                    }
+
+                    // Skip button
+                    OutlinedButton(
+                        onClick = { scheduleViewModel.markSkipped(item) },
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Icon(Icons.Default.SkipNext, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Skip", style = MaterialTheme.typography.labelMedium)
+                    }
+
+                    // Move button
+                    OutlinedButton(
+                        onClick = { showMoveDialog = true },
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Icon(Icons.Default.EditCalendar, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Move", style = MaterialTheme.typography.labelMedium)
+                    }
                 }
             }
         }
     }
+
+    if (showMoveDialog) {
+        MoveDateDialog(
+            currentDate = dateFormat.format(Date(item.scheduledDate)),
+            onDismiss = { showMoveDialog = false },
+            onMove = { daysFromNow ->
+                scheduleViewModel.reschedule(item, LocalDate.now().plusDays(daysFromNow.toLong()))
+                showMoveDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+fun MoveDateDialog(
+    currentDate: String,
+    onDismiss: () -> Unit,
+    onMove: (Int) -> Unit
+) {
+    var selectedDays by remember { mutableStateOf(0) }
+    val dateFormat = remember { SimpleDateFormat("EEE, MMM d", Locale.getDefault()) }
+    val dayOptions = (0..14).map { days ->
+        val cal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, days) }
+        val label = when (days) {
+            0 -> "Today - ${dateFormat.format(cal.time)}"
+            1 -> "Tomorrow - ${dateFormat.format(cal.time)}"
+            else -> dateFormat.format(cal.time)
+        }
+        label to days
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Move Workout") },
+        text = {
+            Column {
+                Text("Currently: $currentDate", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(8.dp))
+                Text("Move to:", style = MaterialTheme.typography.labelMedium)
+                LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                    items(dayOptions) { (label, days) ->
+                        TextButton(onClick = { selectedDays = days }, modifier = Modifier.fillMaxWidth()) {
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(selected = selectedDays == days, onClick = null)
+                                Spacer(Modifier.width(4.dp))
+                                Text(label)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onMove(selectedDays) }) { Text("Move") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 @Composable
@@ -164,7 +280,6 @@ fun ScheduleWorkoutDialog(
         title = { Text("Schedule") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Quick options (rest day, cardio, etc.)
                 Text("Quick options:", style = MaterialTheme.typography.labelMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     quickOptions.forEach { option ->
@@ -180,22 +295,17 @@ fun ScheduleWorkoutDialog(
                     }
                 }
 
-                // Custom label
                 OutlinedTextField(
                     value = customLabel,
                     onValueChange = {
                         customLabel = it
-                        if (it.isNotBlank()) {
-                            selectedLabel = null
-                            selectedTemplate = null
-                        }
+                        if (it.isNotBlank()) { selectedLabel = null; selectedTemplate = null }
                     },
                     label = { Text("Or type custom...") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Templates
                 if (templates.isNotEmpty()) {
                     Text("Templates:", style = MaterialTheme.typography.labelMedium)
                     LazyColumn(modifier = Modifier.heightIn(max = 120.dp)) {
@@ -203,8 +313,7 @@ fun ScheduleWorkoutDialog(
                             TextButton(
                                 onClick = {
                                     selectedTemplate = if (selectedTemplate == template) null else template
-                                    selectedLabel = null
-                                    customLabel = ""
+                                    selectedLabel = null; customLabel = ""
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
@@ -220,7 +329,6 @@ fun ScheduleWorkoutDialog(
 
                 Divider()
 
-                // Day picker
                 Text("When:", style = MaterialTheme.typography.labelMedium)
                 LazyColumn(modifier = Modifier.heightIn(max = 150.dp)) {
                     items(dayLabels) { (label, days) ->

@@ -21,7 +21,7 @@ import com.workout.tracker.data.entity.*
         SetLog::class,
         ScheduledWorkout::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
