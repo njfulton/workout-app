@@ -93,10 +93,10 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
         _importResult.value = null
     }
 
-    fun importRoutineFromText(text: String) {
+    fun importRoutineFromText(text: String, completedTodayIndex: Int? = null) {
         viewModelScope.launch {
             try {
-                val result = parseAndImportRoutines(text)
+                val result = parseAndImportRoutines(text, completedTodayIndex)
                 _importResult.value = result
             } catch (e: Exception) {
                 _importResult.value = "Import failed: ${e.message}"
@@ -118,7 +118,7 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
         val exercises: List<ParsedExercise>
     )
 
-    private suspend fun parseAndImportRoutines(text: String): String {
+    private suspend fun parseAndImportRoutines(text: String, completedTodayIndex: Int? = null): String {
         // Split into multiple routines if present
         val routineBlocks = splitIntoRoutineBlocks(text)
         if (routineBlocks.isEmpty()) return "No routines found"
@@ -138,11 +138,28 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
         var scheduleInfo = ""
         if (createdTemplateIds.size >= 2) {
             val weeks = detectWeekCount(text)
-            scheduleInfo = generateSchedule(createdTemplateIds, weeks)
+            // Extract progression text (everything after the routines)
+            val progressionText = extractProgressionText(text)
+            scheduleInfo = generateScheduleWithProgression(
+                createdTemplateIds, weeks,
+                completedToday = completedTodayIndex,
+                progressionText = progressionText
+            )
         }
 
         val summary = "Imported ${results.size} routine(s):\n${results.joinToString("\n") { "  - $it" }}"
         return if (scheduleInfo.isNotEmpty()) "$summary\n\n$scheduleInfo" else summary
+    }
+
+    private fun extractProgressionText(text: String): String {
+        // Find lines containing phase/week/deload info
+        return text.lines()
+            .filter { line ->
+                val lower = line.lowercase().trim()
+                lower.startsWith("phase") || lower.startsWith("week") ||
+                    lower.contains("deload", ignoreCase = true)
+            }
+            .joinToString("\n")
     }
 
     private fun splitIntoRoutineBlocks(text: String): List<String> {
@@ -325,8 +342,24 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
     }
 
     private suspend fun generateSchedule(templateIds: List<Long>, weeks: Int): String {
+        return generateScheduleWithProgression(templateIds, weeks, completedToday = null)
+    }
+
+    /**
+     * Generates a phased schedule with progression support.
+     * @param completedToday index of the day completed today (0-based), or null
+     * @param progressionText raw text containing phase/progression info
+     */
+    suspend fun generateScheduleWithProgression(
+        templateIds: List<Long>,
+        weeks: Int,
+        completedToday: Int? = null,
+        progressionText: String = ""
+    ): String {
+        // Parse phases from text
+        val phases = parsePhases(progressionText, weeks)
+
         // Schedule pattern: workouts spread across the week with rest days
-        // For 4 templates: Mon/Tue/Thu/Fri with Wed/Sat/Sun as rest
         val daysPattern = when (templateIds.size) {
             2 -> listOf(0, 2) // Mon, Wed
             3 -> listOf(0, 2, 4) // Mon, Wed, Fri
@@ -337,30 +370,54 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
         }
 
         val today = java.time.LocalDate.now()
-        // Start on next Monday
-        val startDate = today.with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.MONDAY))
+        val todayDow = today.dayOfWeek.value - 1 // 0=Mon, 6=Sun
+
+        // Figure out this week's Monday
+        val thisMonday = today.minusDays(todayDow.toLong())
+
+        // If completedToday is set, scheduling starts from today's position
+        // Otherwise start from next Monday
+        val startDate = if (completedToday != null) thisMonday else
+            today.with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.MONDAY))
 
         var scheduledCount = 0
+        val phaseLabels = mutableListOf<String>()
+
         for (week in 0 until weeks) {
             val weekStart = startDate.plusWeeks(week.toLong())
+            val phase = phases.find { week + 1 in it.weekRange }
+            val phaseLabel = phase?.label
+
             for ((patternIndex, dayOffset) in daysPattern.withIndex()) {
                 val templateIndex = patternIndex % templateIds.size
                 val date = weekStart.plusDays(dayOffset.toLong())
+
+                // Skip dates in the past (before today), except for completedToday
+                if (date.isBefore(today)) continue
+
                 val millis = date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                val isToday = date.isEqual(today) && completedToday != null && templateIndex == completedToday
+
+                val label = buildString {
+                    if (phaseLabel != null) append(phaseLabel)
+                }
 
                 repository.insertScheduledWorkout(
                     com.workout.tracker.data.entity.ScheduledWorkout(
                         templateId = templateIds[templateIndex],
-                        scheduledDate = millis
+                        scheduledDate = millis,
+                        isCompleted = isToday,
+                        label = label.ifEmpty { null }
                     )
                 )
                 scheduledCount++
             }
 
-            // Add rest days (Wed and weekends for 4-day split)
+            // Add rest days for 4-day split
             if (templateIds.size == 4) {
                 for (restDay in listOf(2, 5, 6)) { // Wed, Sat, Sun
                     val date = weekStart.plusDays(restDay.toLong())
+                    if (date.isBefore(today)) continue
                     val millis = date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
                     repository.insertScheduledWorkout(
                         com.workout.tracker.data.entity.ScheduledWorkout(
@@ -371,9 +428,37 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
                     )
                 }
             }
+
+            if (phaseLabel != null && phaseLabel !in phaseLabels) phaseLabels.add(phaseLabel)
         }
 
-        return "Scheduled $scheduledCount workouts across $weeks weeks (starting ${startDate})"
+        val phaseSummary = if (phaseLabels.isNotEmpty()) {
+            "\nPhases: ${phaseLabels.joinToString(", ")}"
+        } else ""
+        val completedNote = if (completedToday != null) "\nDay ${completedToday + 1} marked completed for today." else ""
+
+        return "Scheduled $scheduledCount workouts across $weeks weeks (starting ${startDate})$phaseSummary$completedNote"
+    }
+
+    data class Phase(val label: String, val weekRange: IntRange)
+
+    private fun parsePhases(text: String, totalWeeks: Int): List<Phase> {
+        if (text.isBlank()) return emptyList()
+        val phases = mutableListOf<Phase>()
+
+        // Match patterns like "Phase 1, Weeks 1-3 -- Foundation" or "Week 10 -- Deload"
+        val phaseRegex = Regex(
+            "(?:Phase\\s*\\d+,?\\s*)?Weeks?\\s*(\\d+)(?:\\s*-\\s*(\\d+))?\\s*[-–—:]+\\s*(.+)",
+            RegexOption.IGNORE_CASE
+        )
+        for (line in text.lines()) {
+            val match = phaseRegex.find(line.trim()) ?: continue
+            val startWeek = match.groupValues[1].toIntOrNull() ?: continue
+            val endWeek = match.groupValues[2].toIntOrNull() ?: startWeek
+            val label = match.groupValues[3].trim().split(Regex("[.:]"))[0].trim()
+            phases.add(Phase(label, startWeek..endWeek))
+        }
+        return phases
     }
 
     companion object {

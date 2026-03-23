@@ -135,6 +135,21 @@ fun HomeScreen(
                 }
             }
 
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    QuickActionCard(
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.Default.FileDownload,
+                        label = "Import Routine",
+                        onClick = { navController.navigate(Screen.ImportRoutine.route) }
+                    )
+                    Spacer(Modifier.weight(1f))
+                }
+            }
+
             // Upcoming schedule
             if (upcomingSchedule.isNotEmpty()) {
                 item {

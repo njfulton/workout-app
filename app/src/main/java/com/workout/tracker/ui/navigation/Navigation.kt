@@ -23,6 +23,7 @@ sealed class Screen(val route: String) {
     object WorkoutDetail : Screen("workout_detail/{workoutLogId}") {
         fun createRoute(workoutLogId: Long) = "workout_detail/$workoutLogId"
     }
+    object ImportRoutine : Screen("import_routine")
     object EditTemplate : Screen("edit_template/{templateId}") {
         fun createRoute(templateId: Long) = "edit_template/$templateId"
     }
@@ -110,6 +111,12 @@ fun WorkoutNavHost(navController: NavHostController) {
                 navController = navController,
                 viewModel = workoutViewModel,
                 workoutLogId = workoutLogId
+            )
+        }
+        composable(Screen.ImportRoutine.route) {
+            ImportRoutineScreen(
+                navController = navController,
+                templateViewModel = templateViewModel
             )
         }
         composable(Screen.Schedule.route) {
