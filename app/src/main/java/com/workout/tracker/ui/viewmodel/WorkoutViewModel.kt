@@ -108,6 +108,14 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
         }
     }
 
+    fun discardWorkout() {
+        viewModelScope.launch {
+            val log = _activeWorkout.value.workoutLog ?: return@launch
+            repository.deleteWorkoutLog(log)
+            _activeWorkout.value = ActiveWorkoutState()
+        }
+    }
+
     fun finishWorkout() {
         viewModelScope.launch {
             val log = _activeWorkout.value.workoutLog ?: return@launch

@@ -129,16 +129,25 @@ fun ActiveWorkoutScreen(
     if (showFinishConfirm) {
         AlertDialog(
             onDismissRequest = { showFinishConfirm = false },
-            title = { Text("Finish Workout?") },
-            text = { Text("This will save your workout to history.") },
+            title = { Text("End Workout") },
+            text = { Text("Save this workout to your history, or discard it?") },
             confirmButton = {
                 TextButton(onClick = {
                     workoutViewModel.finishWorkout()
                     showFinishConfirm = false
                     navController.popBackStack(route = "home", inclusive = false)
-                }) { Text("Finish") }
+                }) { Text("Save") }
             },
-            dismissButton = { TextButton(onClick = { showFinishConfirm = false }) { Text("Cancel") } }
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { showFinishConfirm = false }) { Text("Cancel") }
+                    TextButton(onClick = {
+                        workoutViewModel.discardWorkout()
+                        showFinishConfirm = false
+                        navController.popBackStack(route = "home", inclusive = false)
+                    }) { Text("Discard", color = MaterialTheme.colorScheme.error) }
+                }
+            }
         )
     }
 }
