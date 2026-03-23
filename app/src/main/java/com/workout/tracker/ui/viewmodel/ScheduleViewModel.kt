@@ -28,6 +28,15 @@ class ScheduleViewModel(private val repository: WorkoutRepository) : ViewModel()
         }
     }
 
+    fun scheduleNonTemplate(label: String, date: LocalDate) {
+        viewModelScope.launch {
+            val millis = date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            repository.insertScheduledWorkout(
+                ScheduledWorkout(templateId = null, scheduledDate = millis, label = label)
+            )
+        }
+    }
+
     fun markCompleted(scheduledWorkout: ScheduledWorkoutWithTemplate, workoutLogId: Long) {
         viewModelScope.launch {
             repository.updateScheduledWorkout(
@@ -36,7 +45,8 @@ class ScheduleViewModel(private val repository: WorkoutRepository) : ViewModel()
                     templateId = scheduledWorkout.templateId,
                     scheduledDate = scheduledWorkout.scheduledDate,
                     isCompleted = true,
-                    completedWorkoutLogId = workoutLogId
+                    completedWorkoutLogId = workoutLogId,
+                    label = scheduledWorkout.label
                 )
             )
         }
@@ -50,7 +60,8 @@ class ScheduleViewModel(private val repository: WorkoutRepository) : ViewModel()
                     templateId = sw.templateId,
                     scheduledDate = sw.scheduledDate,
                     isCompleted = sw.isCompleted,
-                    completedWorkoutLogId = sw.completedWorkoutLogId
+                    completedWorkoutLogId = sw.completedWorkoutLogId,
+                    label = sw.label
                 )
             )
         }

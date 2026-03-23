@@ -14,8 +14,9 @@ import androidx.room.PrimaryKey
 )
 data class ScheduledWorkout(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val templateId: Long,
+    val templateId: Long? = null,
     val scheduledDate: Long,
     val isCompleted: Boolean = false,
-    val completedWorkoutLogId: Long? = null
+    val completedWorkoutLogId: Long? = null,
+    val label: String? = null
 )

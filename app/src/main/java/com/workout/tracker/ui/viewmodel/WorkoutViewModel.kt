@@ -4,6 +4,7 @@ import androidx.lifecycle.*
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.workout.tracker.WorkoutApp
+import com.workout.tracker.data.dao.ExerciseHistoryEntry
 import com.workout.tracker.data.entity.*
 import com.workout.tracker.data.repository.OverloadSuggestion
 import com.workout.tracker.data.repository.WorkoutRepository
@@ -15,7 +16,8 @@ data class ActiveExercise(
     val exercise: Exercise,
     val sets: List<SetLog> = emptyList(),
     val overloadSuggestion: OverloadSuggestion? = null,
-    val restSeconds: Int = 90
+    val restSeconds: Int = 90,
+    val history: List<ExerciseHistoryEntry> = emptyList()
 )
 
 data class ActiveWorkoutState(
@@ -59,7 +61,8 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
                         ExerciseLog(workoutLogId = logId, exerciseId = te.exerciseId, orderIndex = te.orderIndex)
                     )
                     val suggestion = repository.getProgressiveOverloadSuggestion(te.exerciseId)
-                    ActiveExercise(exerciseLogId = elId, exercise = exercise, overloadSuggestion = suggestion, restSeconds = te.restSeconds)
+                    val history = repository.getExerciseHistory(te.exerciseId)
+                    ActiveExercise(exerciseLogId = elId, exercise = exercise, overloadSuggestion = suggestion, restSeconds = te.restSeconds, history = history)
                 }
                 _activeWorkout.value = ActiveWorkoutState(workoutLog = savedLog, exercises = activeExercises, isActive = true)
             } else {
@@ -77,7 +80,8 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
                 ExerciseLog(workoutLogId = workoutLog.id, exerciseId = exercise.id, orderIndex = orderIndex)
             )
             val suggestion = repository.getProgressiveOverloadSuggestion(exercise.id)
-            val newExercise = ActiveExercise(exerciseLogId = elId, exercise = exercise, overloadSuggestion = suggestion)
+            val history = repository.getExerciseHistory(exercise.id)
+            val newExercise = ActiveExercise(exerciseLogId = elId, exercise = exercise, overloadSuggestion = suggestion, history = history)
             _activeWorkout.value = state.copy(exercises = state.exercises + newExercise)
         }
     }

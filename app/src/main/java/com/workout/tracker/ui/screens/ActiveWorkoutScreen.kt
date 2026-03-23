@@ -153,6 +153,7 @@ fun ExerciseCard(
     var repsText by remember { mutableStateOf("") }
     var weightText by remember { mutableStateOf("") }
     var isWarmup by remember { mutableStateOf(false) }
+    var showHistory by remember { mutableStateOf(false) }
     val nextSetNumber = activeExercise.sets.size + 1
 
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -177,9 +178,46 @@ fun ExerciseCard(
                 }
             }
 
+            // History toggle
+            if (activeExercise.history.isNotEmpty()) {
+                TextButton(onClick = { showHistory = !showHistory }) {
+                    Icon(
+                        if (showHistory) Icons.Default.ExpandLess else Icons.Default.History,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(if (showHistory) "Hide History" else "Show History", style = MaterialTheme.typography.bodySmall)
+                }
+
+                if (showHistory) {
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text("Recent Performance", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(4.dp))
+                            // Group by workout date
+                            val byWorkout = activeExercise.history.groupBy { it.startTime }
+                            val dateFormat = java.text.SimpleDateFormat("MMM d", java.util.Locale.US)
+                            byWorkout.entries.take(5).forEach { (startTime, sets) ->
+                                val dateStr = dateFormat.format(java.util.Date(startTime))
+                                val setsStr = sets.joinToString(", ") { set ->
+                                    val w = set.weightLbs?.let { "${it.toInt()}lb" } ?: "BW"
+                                    "${w}x${set.reps}"
+                                }
+                                Text(
+                                    "$dateStr: $setsStr",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             Spacer(Modifier.height(8.dp))
 
-            // Previous sets
+            // Previous sets (current workout)
             activeExercise.sets.forEach { set ->
                 Text(
                     "Set ${set.setNumber}: ${set.reps} reps${if (set.weightLbs != null) " @ ${set.weightLbs}lbs" else ""}${if (set.isWarmup) " (warmup)" else ""}",

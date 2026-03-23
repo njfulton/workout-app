@@ -4,6 +4,7 @@ import com.workout.tracker.data.dao.*
 import com.workout.tracker.data.entity.*
 import kotlinx.coroutines.flow.Flow
 
+
 class WorkoutRepository(
     private val exerciseDao: ExerciseDao,
     private val templateDao: WorkoutTemplateDao,
@@ -53,6 +54,7 @@ class WorkoutRepository(
     suspend fun updateSetLog(log: SetLog) = workoutLogDao.updateSetLog(log)
     suspend fun deleteWorkoutLog(log: WorkoutLog) = workoutLogDao.deleteWorkoutLog(log)
     suspend fun insertSetLogs(logs: List<SetLog>) = workoutLogDao.insertSetLogs(logs)
+    suspend fun getExerciseHistory(exerciseId: Long, limit: Int = 50): List<ExerciseHistoryEntry> = workoutLogDao.getExerciseHistory(exerciseId, limit)
 
     // Schedule
     fun getUpcomingSchedule(fromDate: Long): Flow<List<ScheduledWorkoutWithTemplate>> = scheduleDao.getUpcomingSchedule(fromDate)

@@ -6,20 +6,21 @@ import kotlinx.coroutines.flow.Flow
 
 data class ScheduledWorkoutWithTemplate(
     val id: Long,
-    val templateId: Long,
-    val templateName: String,
+    val templateId: Long?,
+    val templateName: String?,
     val scheduledDate: Long,
     val isCompleted: Boolean,
-    val completedWorkoutLogId: Long?
+    val completedWorkoutLogId: Long?,
+    val label: String?
 )
 
 @Dao
 interface ScheduleDao {
     @Query("""
         SELECT s.id, s.templateId, t.name as templateName, s.scheduledDate,
-               s.isCompleted, s.completedWorkoutLogId
+               s.isCompleted, s.completedWorkoutLogId, s.label
         FROM scheduled_workouts s
-        INNER JOIN workout_templates t ON s.templateId = t.id
+        LEFT JOIN workout_templates t ON s.templateId = t.id
         WHERE s.scheduledDate >= :fromDate
         ORDER BY s.scheduledDate ASC
     """)
@@ -27,9 +28,9 @@ interface ScheduleDao {
 
     @Query("""
         SELECT s.id, s.templateId, t.name as templateName, s.scheduledDate,
-               s.isCompleted, s.completedWorkoutLogId
+               s.isCompleted, s.completedWorkoutLogId, s.label
         FROM scheduled_workouts s
-        INNER JOIN workout_templates t ON s.templateId = t.id
+        LEFT JOIN workout_templates t ON s.templateId = t.id
         WHERE s.scheduledDate >= :startDate AND s.scheduledDate <= :endDate
         ORDER BY s.scheduledDate ASC
     """)

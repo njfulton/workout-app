@@ -7,6 +7,14 @@ import com.workout.tracker.data.entity.WorkoutLog
 import com.workout.tracker.data.entity.WorkoutType
 import kotlinx.coroutines.flow.Flow
 
+data class ExerciseHistoryEntry(
+    val startTime: Long,
+    val setNumber: Int,
+    val reps: Int?,
+    val weightLbs: Double?,
+    val isWarmup: Boolean
+)
+
 data class WorkoutLogSummary(
     val id: Long,
     val name: String,
@@ -63,6 +71,17 @@ interface WorkoutLogDao {
         WHERE el.exerciseId = :exerciseId AND sl.isWarmup = 0
     """)
     suspend fun getMaxWeightForExercise(exerciseId: Long): Double?
+
+    @Query("""
+        SELECT w.startTime, sl.setNumber, sl.reps, sl.weightLbs, sl.isWarmup
+        FROM set_logs sl
+        INNER JOIN exercise_logs el ON sl.exerciseLogId = el.id
+        INNER JOIN workout_logs w ON el.workoutLogId = w.id
+        WHERE el.exerciseId = :exerciseId AND sl.isWarmup = 0
+        ORDER BY w.startTime DESC, sl.setNumber ASC
+        LIMIT :limit
+    """)
+    suspend fun getExerciseHistory(exerciseId: Long, limit: Int = 50): List<ExerciseHistoryEntry>
 
     @Insert
     suspend fun insertWorkoutLog(workoutLog: WorkoutLog): Long

@@ -141,16 +141,24 @@ fun HomeScreen(
                     Spacer(Modifier.height(8.dp))
                     Text("Upcoming", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 }
-                items(upcomingSchedule.take(3)) { scheduled ->
+                items(upcomingSchedule.take(5)) { scheduled ->
+                    val displayName = scheduled.templateName ?: scheduled.label ?: "Unknown"
+                    val isRestDay = scheduled.label?.lowercase()?.contains("rest") == true
+                    val icon = when {
+                        isRestDay -> Icons.Default.Hotel
+                        scheduled.label?.lowercase()?.contains("cardio") == true -> Icons.Default.DirectionsRun
+                        scheduled.templateId != null -> Icons.Default.FitnessCenter
+                        else -> Icons.Default.Event
+                    }
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Row(
                             modifier = Modifier.padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.CalendarToday, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(12.dp))
                             Column {
-                                Text(scheduled.templateName, style = MaterialTheme.typography.bodyLarge)
+                                Text(displayName, style = MaterialTheme.typography.bodyLarge)
                                 Text(dateFormat.format(Date(scheduled.scheduledDate)), style = MaterialTheme.typography.bodySmall)
                             }
                         }
