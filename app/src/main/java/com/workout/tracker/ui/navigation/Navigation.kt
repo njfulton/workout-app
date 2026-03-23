@@ -33,6 +33,7 @@ sealed class Screen(val route: String) {
     object BackupRestore : Screen("backup_restore")
     object Pushups : Screen("pushups")
     object WeeklySummary : Screen("weekly_summary")
+    object RoutineBuilder : Screen("routine_builder")
 }
 
 @Composable
@@ -157,6 +158,13 @@ fun WorkoutNavHost(navController: NavHostController) {
             PushupScreen(
                 navController = navController,
                 repository = app.repository
+            )
+        }
+        composable(Screen.RoutineBuilder.route) {
+            RoutineBuilderScreen(
+                navController = navController,
+                templateViewModel = templateViewModel,
+                scheduleViewModel = scheduleViewModel
             )
         }
         composable(Screen.WeeklySummary.route) {

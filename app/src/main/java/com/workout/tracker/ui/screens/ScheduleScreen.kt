@@ -398,6 +398,7 @@ fun DayDetailItem(
     val displayName = item.templateName ?: item.label ?: "Unknown"
     val isRestDay = item.label?.lowercase()?.contains("rest") == true
     val isDone = item.isCompleted || item.isSkipped
+    var showMoveDateDialog by remember { mutableStateOf(false) }
 
     val icon = when {
         isRestDay -> Icons.Default.Hotel
@@ -499,8 +500,32 @@ fun DayDetailItem(
                         Text("Skip", style = MaterialTheme.typography.labelSmall)
                     }
                 }
+
+                Spacer(Modifier.height(4.dp))
+
+                OutlinedButton(
+                    onClick = { showMoveDateDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Icon(Icons.Default.EditCalendar, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Move", style = MaterialTheme.typography.labelSmall)
+                }
             }
         }
+    }
+
+    if (showMoveDateDialog) {
+        MoveDateDialog(
+            currentDateMillis = item.scheduledDate,
+            onDismiss = { showMoveDateDialog = false },
+            onMove = { newDate ->
+                scheduleViewModel.reschedule(item, newDate)
+                showMoveDateDialog = false
+                onDismissDialog()
+            }
+        )
     }
 }
 

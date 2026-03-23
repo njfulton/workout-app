@@ -110,8 +110,8 @@ fun HomeScreen(
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     QuickActionCard(Modifier.weight(1f), Icons.Default.FolderOpen, "Saved\nRoutines") { navController.navigate(Screen.SavedRoutines.route) }
+                    QuickActionCard(Modifier.weight(1f), Icons.Default.Build, "Build\nRoutine") { navController.navigate(Screen.RoutineBuilder.route) }
                     QuickActionCard(Modifier.weight(1f), Icons.Default.Backup, "Backup") { navController.navigate(Screen.BackupRestore.route) }
-                    Spacer(Modifier.weight(1f))
                 }
             }
 

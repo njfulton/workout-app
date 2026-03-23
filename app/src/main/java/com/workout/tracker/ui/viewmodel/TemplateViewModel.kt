@@ -132,6 +132,8 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
         )
     }
 
+    fun getDefaultDayAssignmentsPublic(routineCount: Int) = getDefaultDayAssignments(routineCount)
+
     private fun getDefaultDayAssignments(routineCount: Int): Map<Int, List<java.time.DayOfWeek>> {
         val patterns = when (routineCount) {
             1 -> listOf(listOf(java.time.DayOfWeek.MONDAY, java.time.DayOfWeek.WEDNESDAY, java.time.DayOfWeek.FRIDAY))
@@ -263,6 +265,84 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
     fun deleteSavedRoutine(routine: com.workout.tracker.data.entity.SavedRoutine) {
         viewModelScope.launch {
             repository.deleteSavedRoutine(routine)
+        }
+    }
+
+    fun buildRoutineFromTemplates(
+        routineName: String,
+        templateIds: List<Long>,
+        templateNames: List<String>,
+        dayAssignments: Map<Int, List<java.time.DayOfWeek>>,
+        weeks: Int,
+        startDate: java.time.LocalDate,
+        clearFutureFirst: Boolean
+    ) {
+        viewModelScope.launch {
+            try {
+                if (clearFutureFirst) {
+                    repository.clearFutureSchedule()
+                }
+
+                val today = java.time.LocalDate.now()
+                var scheduledCount = 0
+
+                for (week in 1..weeks) {
+                    val weekMonday = startDate.plusWeeks((week - 1).toLong())
+                        .with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+
+                    for ((routineIndex, templateId) in templateIds.withIndex()) {
+                        val days = dayAssignments[routineIndex] ?: continue
+                        for (dow in days) {
+                            val date = weekMonday.with(dow)
+                            if (week == 1 && date.isBefore(startDate)) continue
+                            if (date.isBefore(today)) continue
+
+                            val millis = date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                            repository.insertScheduledWorkout(
+                                com.workout.tracker.data.entity.ScheduledWorkout(
+                                    templateId = templateId,
+                                    scheduledDate = millis
+                                )
+                            )
+                            scheduledCount++
+                        }
+                    }
+                }
+
+                // Save the routine for future re-use
+                val dayAssignmentsJson = buildString {
+                    append("{")
+                    append(dayAssignments.entries.joinToString(",") { (k, v) ->
+                        "\"$k\":[${v.joinToString(",") { "\"${it.name}\"" }}]"
+                    })
+                    append("}")
+                }
+                val routineNamesJson = "[${templateNames.joinToString(",") { "\"${it.replace("\"", "\\\"")}\"" }}]"
+
+                val savedRoutine = SavedRoutine(
+                    name = routineName,
+                    rawText = "",
+                    dayAssignmentsJson = dayAssignmentsJson,
+                    weekCount = weeks,
+                    routineNamesJson = routineNamesJson
+                )
+                val savedId = repository.insertSavedRoutine(savedRoutine)
+
+                val startMillis = startDate.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                val endDate = startDate.plusWeeks(weeks.toLong())
+                val endMillis = endDate.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                repository.insertRoutineUsageHistory(
+                    RoutineUsageHistory(
+                        savedRoutineId = savedId,
+                        startDate = startMillis,
+                        endDate = endMillis
+                    )
+                )
+
+                _importResult.value = "Scheduled $scheduledCount workouts across $weeks weeks for \"$routineName\""
+            } catch (e: Throwable) {
+                _importResult.value = "Failed to build routine: ${e.message}"
+            }
         }
     }
 
