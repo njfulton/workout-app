@@ -31,6 +31,8 @@ sealed class Screen(val route: String) {
     }
     object SavedRoutines : Screen("saved_routines")
     object BackupRestore : Screen("backup_restore")
+    object Pushups : Screen("pushups")
+    object WeeklySummary : Screen("weekly_summary")
 }
 
 @Composable
@@ -147,6 +149,22 @@ fun WorkoutNavHost(navController: NavHostController) {
             BackupRestoreScreen(
                 navController = navController,
                 backupManager = backupManager
+            )
+        }
+        composable(Screen.Pushups.route) {
+            val context = LocalContext.current
+            val app = context.applicationContext as com.workout.tracker.WorkoutApp
+            PushupScreen(
+                navController = navController,
+                repository = app.repository
+            )
+        }
+        composable(Screen.WeeklySummary.route) {
+            val context = LocalContext.current
+            val app = context.applicationContext as com.workout.tracker.WorkoutApp
+            WeeklySummaryScreen(
+                navController = navController,
+                repository = app.repository
             )
         }
     }

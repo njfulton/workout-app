@@ -19,7 +19,8 @@ class WorkoutApp : Application() {
             database.workoutTemplateDao(),
             database.workoutLogDao(),
             database.scheduleDao(),
-            database.savedRoutineDao()
+            database.savedRoutineDao(),
+            database.pushupLogDao()
         )
     }
 

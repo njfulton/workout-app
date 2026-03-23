@@ -82,6 +82,11 @@ class BackupManager(
             }
             json.put("routineUsageHistory", routineUsageHistoryToJson(usageHistory))
 
+            // Pushup logs
+            val pushupLogDao = database.pushupLogDao()
+            val pushupLogs = pushupLogDao.getAllPushupLogsList()
+            json.put("pushupLogs", pushupLogsToJson(pushupLogs))
+
             // Write to Downloads
             val fileName = "workout_backup_${dateFormat.format(Date())}.json"
             val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
@@ -218,7 +223,17 @@ class BackupManager(
                 }
             }
 
-            Result.success(ImportSummary(exerciseCount, templateCount, workoutLogCount, setLogCount))
+            // Import pushup logs
+            var pushupCount = 0
+            if (json.has("pushupLogs")) {
+                val logs = jsonToPushupLogs(json.getJSONArray("pushupLogs"))
+                for (log in logs) {
+                    database.pushupLogDao().insert(log.copy(id = 0))
+                    pushupCount++
+                }
+            }
+
+            Result.success(ImportSummary(exerciseCount, templateCount, workoutLogCount, setLogCount, pushupCount))
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -512,10 +527,37 @@ class BackupManager(
     private fun JSONObject.optNullableDouble(key: String): Double? =
         if (has(key) && !isNull(key)) getDouble(key) else null
 
+    // Pushup log serialization
+    private fun pushupLogsToJson(logs: List<PushupLog>): JSONArray {
+        val arr = JSONArray()
+        for (l in logs) {
+            arr.put(JSONObject().apply {
+                put("id", l.id)
+                put("timestamp", l.timestamp)
+                put("count", l.count)
+                put("durationSeconds", l.durationSeconds ?: JSONObject.NULL)
+            })
+        }
+        return arr
+    }
+
+    private fun jsonToPushupLogs(arr: JSONArray): List<PushupLog> {
+        return (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            PushupLog(
+                id = o.getLong("id"),
+                timestamp = o.getLong("timestamp"),
+                count = o.getInt("count"),
+                durationSeconds = o.optNullableInt("durationSeconds")
+            )
+        }
+    }
+
     data class ImportSummary(
         val exercisesImported: Int,
         val templatesImported: Int,
         val workoutLogsImported: Int,
-        val setLogsImported: Int
+        val setLogsImported: Int,
+        val pushupLogsImported: Int = 0
     )
 }

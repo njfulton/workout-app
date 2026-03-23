@@ -10,7 +10,8 @@ class WorkoutRepository(
     private val templateDao: WorkoutTemplateDao,
     private val workoutLogDao: WorkoutLogDao,
     private val scheduleDao: ScheduleDao,
-    private val savedRoutineDao: SavedRoutineDao? = null
+    private val savedRoutineDao: SavedRoutineDao? = null,
+    private val pushupLogDao: PushupLogDao? = null
 ) {
     // Exercises
     val allExercises: Flow<List<Exercise>> = exerciseDao.getAllExercises()
@@ -84,6 +85,14 @@ class WorkoutRepository(
         // We need to use the DAO directly since this is a bulk operation
         scheduleDao.deleteFutureIncomplete(todayMillis)
     }
+
+    // Pushup Logs
+    fun getAllPushupLogs(): Flow<List<PushupLog>> = pushupLogDao?.getAllPushupLogs() ?: kotlinx.coroutines.flow.flowOf(emptyList())
+    fun getPushupLogsBetween(start: Long, end: Long): Flow<List<PushupLog>> = pushupLogDao?.getPushupLogsBetween(start, end) ?: kotlinx.coroutines.flow.flowOf(emptyList())
+    suspend fun getTotalPushupsBetween(start: Long, end: Long): Int = pushupLogDao?.getTotalPushupsBetween(start, end) ?: 0
+    suspend fun insertPushupLog(log: PushupLog): Long = pushupLogDao?.insert(log) ?: 0
+    suspend fun deletePushupLog(log: PushupLog) = pushupLogDao?.delete(log)
+    suspend fun getAllPushupLogsList(): List<PushupLog> = pushupLogDao?.getAllPushupLogsList() ?: emptyList()
 
     // Progressive Overload Suggestion
     suspend fun getProgressiveOverloadSuggestion(exerciseId: Long): OverloadSuggestion? {

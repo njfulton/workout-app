@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -31,6 +32,7 @@ fun HomeScreen(
     val recentWorkouts by workoutViewModel.workoutHistory.collectAsStateWithLifecycle()
     val upcomingSchedule by scheduleViewModel.upcomingSchedule.collectAsStateWithLifecycle()
     val dateFormat = remember { SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()) }
+    val scheduleDateFormat = remember { SimpleDateFormat("EEE, MMM d", Locale.getDefault()) }
 
     Scaffold(
         topBar = {
@@ -58,120 +60,61 @@ fun HomeScreen(
                             modifier = Modifier.padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.FitnessCenter, contentDescription = null)
+                            Icon(Icons.Default.FitnessCenter, contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer)
                             Spacer(Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Workout in Progress", style = MaterialTheme.typography.titleMedium)
-                                Text(activeWorkout.workoutLog?.name ?: "", style = MaterialTheme.typography.bodySmall)
+                                Text("Workout in Progress", style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                Text(activeWorkout.workoutLog?.name ?: "", style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer)
                             }
-                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Continue")
+                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Continue",
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer)
                         }
                     }
                 }
             }
 
-            // Quick actions
+            // Quick actions - row 1
             item {
                 Spacer(Modifier.height(4.dp))
                 Text("Quick Actions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             }
 
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    QuickActionCard(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.PlayArrow,
-                        label = "Start\nWorkout",
-                        onClick = { navController.navigate(Screen.StartWorkout.route) }
-                    )
-                    QuickActionCard(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.Bolt,
-                        label = "Quick\nLog",
-                        onClick = { navController.navigate(Screen.QuickLog.route) }
-                    )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    QuickActionCard(Modifier.weight(1f), Icons.Default.PlayArrow, "Start\nWorkout") { navController.navigate(Screen.StartWorkout.route) }
+                    QuickActionCard(Modifier.weight(1f), Icons.Default.Sports, "Pushups") { navController.navigate(Screen.Pushups.route) }
+                    QuickActionCard(Modifier.weight(1f), Icons.Default.Assessment, "Weekly\nSummary") { navController.navigate(Screen.WeeklySummary.route) }
                 }
             }
 
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    QuickActionCard(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.FitnessCenter,
-                        label = "Exercises",
-                        onClick = { navController.navigate(Screen.Exercises.route) }
-                    )
-                    QuickActionCard(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.ViewList,
-                        label = "Templates",
-                        onClick = { navController.navigate(Screen.Templates.route) }
-                    )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    QuickActionCard(Modifier.weight(1f), Icons.Default.CalendarMonth, "Schedule") { navController.navigate(Screen.Schedule.route) }
+                    QuickActionCard(Modifier.weight(1f), Icons.Default.History, "History") { navController.navigate(Screen.History.route) }
+                    QuickActionCard(Modifier.weight(1f), Icons.Default.Bolt, "Quick\nLog") { navController.navigate(Screen.QuickLog.route) }
                 }
             }
 
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    QuickActionCard(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.History,
-                        label = "History",
-                        onClick = { navController.navigate(Screen.History.route) }
-                    )
-                    QuickActionCard(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.CalendarMonth,
-                        label = "Schedule",
-                        onClick = { navController.navigate(Screen.Schedule.route) }
-                    )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    QuickActionCard(Modifier.weight(1f), Icons.Default.FitnessCenter, "Exercises") { navController.navigate(Screen.Exercises.route) }
+                    QuickActionCard(Modifier.weight(1f), Icons.Default.ViewList, "Templates") { navController.navigate(Screen.Templates.route) }
+                    QuickActionCard(Modifier.weight(1f), Icons.Default.FileDownload, "Import") { navController.navigate(Screen.ImportRoutine.route) }
                 }
             }
 
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    QuickActionCard(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.FileDownload,
-                        label = "Import\nRoutine",
-                        onClick = { navController.navigate(Screen.ImportRoutine.route) }
-                    )
-                    QuickActionCard(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.FolderOpen,
-                        label = "Saved\nRoutines",
-                        onClick = { navController.navigate(Screen.SavedRoutines.route) }
-                    )
-                }
-            }
-
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    QuickActionCard(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.Backup,
-                        label = "Backup\n& Restore",
-                        onClick = { navController.navigate(Screen.BackupRestore.route) }
-                    )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    QuickActionCard(Modifier.weight(1f), Icons.Default.FolderOpen, "Saved\nRoutines") { navController.navigate(Screen.SavedRoutines.route) }
+                    QuickActionCard(Modifier.weight(1f), Icons.Default.Backup, "Backup") { navController.navigate(Screen.BackupRestore.route) }
                     Spacer(Modifier.weight(1f))
                 }
             }
 
-            // Upcoming schedule
+            // Upcoming schedule with status indicators
             if (upcomingSchedule.isNotEmpty()) {
                 item {
                     Spacer(Modifier.height(8.dp))
@@ -180,49 +123,72 @@ fun HomeScreen(
                 items(upcomingSchedule.take(5)) { scheduled ->
                     val displayName = scheduled.templateName ?: scheduled.label ?: "Unknown"
                     val isRestDay = scheduled.label?.lowercase()?.contains("rest") == true
-                    val icon = when {
+
+                    val statusIcon = when {
+                        scheduled.isCompleted -> Icons.Default.CheckCircle
+                        scheduled.isSkipped -> Icons.Default.Cancel
                         isRestDay -> Icons.Default.Hotel
-                        scheduled.label?.lowercase()?.contains("cardio") == true -> Icons.Default.DirectionsRun
-                        scheduled.templateId != null -> Icons.Default.FitnessCenter
-                        else -> Icons.Default.Event
+                        else -> Icons.Default.Schedule
                     }
+                    val statusColor = when {
+                        scheduled.isCompleted -> MaterialTheme.colorScheme.primary
+                        scheduled.isSkipped -> MaterialTheme.colorScheme.error
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        onClick = {
-                            if (scheduled.templateId != null && !scheduled.isCompleted && !scheduled.isSkipped) {
-                                workoutViewModel.startWorkout(
-                                    name = scheduled.templateName ?: "Workout",
-                                    type = com.workout.tracker.data.entity.WorkoutType.STRENGTH,
-                                    templateId = scheduled.templateId
-                                )
-                                scheduleViewModel.markCompleted(scheduled)
-                                navController.navigate(Screen.ActiveWorkout.route) {
-                                    popUpTo(Screen.Home.route)
-                                }
-                            } else {
-                                navController.navigate(Screen.Schedule.route)
-                            }
-                        }
+                        onClick = { navController.navigate(Screen.Schedule.route) }
                     ) {
                         Row(
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier.padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Icon(statusIcon, contentDescription = null, tint = statusColor, modifier = Modifier.size(24.dp))
                             Spacer(Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(displayName, style = MaterialTheme.typography.bodyLarge)
-                                Text(dateFormat.format(Date(scheduled.scheduledDate)), style = MaterialTheme.typography.bodySmall)
+                                Text(displayName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                                Row {
+                                    Text(
+                                        scheduleDateFormat.format(Date(scheduled.scheduledDate)),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    if (scheduled.label != null && scheduled.templateName != null) {
+                                        Text(
+                                            " \u2022 ${scheduled.label}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
                             }
                             if (scheduled.templateId != null && !scheduled.isCompleted && !scheduled.isSkipped) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = "Start", tint = MaterialTheme.colorScheme.primary)
+                                FilledTonalButton(
+                                    onClick = {
+                                        workoutViewModel.startWorkout(
+                                            name = scheduled.templateName ?: "Workout",
+                                            type = com.workout.tracker.data.entity.WorkoutType.STRENGTH,
+                                            templateId = scheduled.templateId
+                                        )
+                                        scheduleViewModel.markCompleted(scheduled)
+                                        navController.navigate(Screen.ActiveWorkout.route) {
+                                            popUpTo(Screen.Home.route)
+                                        }
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Start", style = MaterialTheme.typography.labelSmall)
+                                }
                             }
                         }
                     }
                 }
             }
 
-            // Recent workouts
+            // Recent workouts - clickable with status
             if (recentWorkouts.isNotEmpty()) {
                 item {
                     Spacer(Modifier.height(8.dp))
@@ -234,26 +200,27 @@ fun HomeScreen(
                         onClick = { navController.navigate(Screen.WorkoutDetail.createRoute(workout.id)) }
                     ) {
                         Row(
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier.padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                when (workout.workoutType) {
-                                    com.workout.tracker.data.entity.WorkoutType.STRENGTH -> Icons.Default.FitnessCenter
-                                    com.workout.tracker.data.entity.WorkoutType.CARDIO -> Icons.Default.DirectionsRun
-                                    com.workout.tracker.data.entity.WorkoutType.PELOTON -> Icons.Default.PedalBike
-                                    com.workout.tracker.data.entity.WorkoutType.BODYWEIGHT_QUICK -> Icons.Default.Bolt
-                                    com.workout.tracker.data.entity.WorkoutType.OTHER -> Icons.Default.SportsGymnastics
-                                },
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
+                                Icons.Default.CheckCircle,
+                                contentDescription = "Completed",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
                             )
                             Spacer(Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(workout.name, style = MaterialTheme.typography.bodyLarge)
+                                Text(workout.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                                val durationMin = workout.endTime?.let { ((it - workout.startTime) / 60000).toInt() }
                                 Text(
-                                    "${workout.exerciseCount} exercises • ${dateFormat.format(Date(workout.startTime))}",
-                                    style = MaterialTheme.typography.bodySmall
+                                    buildString {
+                                        append(dateFormat.format(Date(workout.startTime)))
+                                        append(" \u2022 ${workout.exerciseCount} exercises")
+                                        if (durationMin != null && durationMin > 0) append(" \u2022 ${durationMin}m")
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -276,16 +243,19 @@ fun QuickActionCard(
 ) {
     Card(
         onClick = onClick,
-        modifier = modifier.height(100.dp)
+        modifier = modifier.height(80.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(12.dp),
+            modifier = Modifier.fillMaxSize().padding(8.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(8.dp))
-            Text(label, style = MaterialTheme.typography.labelMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.height(4.dp))
+            Text(label, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center, maxLines = 2)
         }
     }
 }

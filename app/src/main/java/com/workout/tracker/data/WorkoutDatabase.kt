@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.workout.tracker.data.dao.ExerciseDao
+import com.workout.tracker.data.dao.PushupLogDao
 import com.workout.tracker.data.dao.SavedRoutineDao
 import com.workout.tracker.data.dao.ScheduleDao
 import com.workout.tracker.data.dao.WorkoutLogDao
@@ -22,9 +23,10 @@ import com.workout.tracker.data.entity.*
         SetLog::class,
         ScheduledWorkout::class,
         SavedRoutine::class,
-        RoutineUsageHistory::class
+        RoutineUsageHistory::class,
+        PushupLog::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -34,6 +36,7 @@ abstract class WorkoutDatabase : RoomDatabase() {
     abstract fun workoutLogDao(): WorkoutLogDao
     abstract fun scheduleDao(): ScheduleDao
     abstract fun savedRoutineDao(): SavedRoutineDao
+    abstract fun pushupLogDao(): PushupLogDao
 
     companion object {
         @Volatile

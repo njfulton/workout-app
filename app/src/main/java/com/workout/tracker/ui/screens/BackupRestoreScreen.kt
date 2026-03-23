@@ -251,7 +251,7 @@ fun BackupRestoreScreen(
                             isImporting = false
                             result.fold(
                                 onSuccess = { summary ->
-                                    statusMessage = "Restored: ${summary.exercisesImported} exercises, ${summary.templatesImported} templates, ${summary.workoutLogsImported} workouts, ${summary.setLogsImported} sets"
+                                    statusMessage = "Restored: ${summary.exercisesImported} exercises, ${summary.templatesImported} templates, ${summary.workoutLogsImported} workouts, ${summary.setLogsImported} sets, ${summary.pushupLogsImported} pushup logs"
                                 },
                                 onFailure = { e ->
                                     statusMessage = "Import failed: ${e.message}"
