@@ -1,5 +1,7 @@
 package com.workout.tracker.ui.viewmodel
 
+import android.content.Context
+import android.media.RingtoneManager
 import androidx.lifecycle.*
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -18,14 +20,57 @@ data class ActiveExercise(
     val overloadSuggestion: OverloadSuggestion? = null,
     val restSeconds: Int = 90,
     val history: List<ExerciseHistoryEntry> = emptyList(),
-    val supersetGroup: Int? = null
+    val supersetGroup: Int? = null,
+    val targetSets: Int? = null,
+    val targetReps: Int? = null,
+    val isManuallyDone: Boolean = false
 )
+
+data class ExerciseGroup(
+    val exercises: List<ActiveExercise>,
+    val isSuperset: Boolean
+) {
+    val isCompleted: Boolean
+        get() = exercises.all { ex ->
+            ex.isManuallyDone || (ex.targetSets != null && ex.sets.count { !it.isWarmup } >= ex.targetSets)
+        }
+
+    val label: String
+        get() = if (isSuperset) exercises.joinToString(" + ") { it.exercise.name }
+        else exercises.first().exercise.name
+}
 
 data class ActiveWorkoutState(
     val workoutLog: WorkoutLog? = null,
     val exercises: List<ActiveExercise> = emptyList(),
-    val isActive: Boolean = false
-)
+    val isActive: Boolean = false,
+    val currentGroupIndex: Int = 0,
+    val isFromTemplate: Boolean = false
+) {
+    val groups: List<ExerciseGroup>
+        get() {
+            val result = mutableListOf<ExerciseGroup>()
+            var i = 0
+            while (i < exercises.size) {
+                val ex = exercises[i]
+                if (ex.supersetGroup != null) {
+                    val group = mutableListOf(ex)
+                    while (i + 1 < exercises.size && exercises[i + 1].supersetGroup == ex.supersetGroup) {
+                        i++
+                        group.add(exercises[i])
+                    }
+                    result.add(ExerciseGroup(group, isSuperset = true))
+                } else {
+                    result.add(ExerciseGroup(listOf(ex), isSuperset = false))
+                }
+                i++
+            }
+            return result
+        }
+
+    val currentGroup: ExerciseGroup?
+        get() = groups.getOrNull(currentGroupIndex)
+}
 
 class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() {
 
@@ -42,6 +87,10 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
     private val _isTimerRunning = MutableStateFlow(false)
     val isTimerRunning: StateFlow<Boolean> = _isTimerRunning
 
+    // Timer completion event
+    private val _timerFinishedEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val timerFinishedEvent: SharedFlow<Unit> = _timerFinishedEvent
+
     fun startWorkout(name: String, type: WorkoutType, templateId: Long? = null) {
         viewModelScope.launch {
             val log = WorkoutLog(
@@ -53,7 +102,6 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
             val logId = repository.insertWorkoutLog(log)
             val savedLog = repository.getWorkoutLogById(logId) ?: return@launch
 
-            // If from template, pre-populate exercises
             if (templateId != null) {
                 val templateExercises = repository.getTemplateExercises(templateId)
                 val activeExercises = templateExercises.mapNotNull { te ->
@@ -63,11 +111,18 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
                     )
                     val suggestion = repository.getProgressiveOverloadSuggestion(te.exerciseId)
                     val history = repository.getExerciseHistory(te.exerciseId)
-                    ActiveExercise(exerciseLogId = elId, exercise = exercise, overloadSuggestion = suggestion, restSeconds = te.restSeconds, history = history, supersetGroup = te.supersetGroup)
+                    ActiveExercise(
+                        exerciseLogId = elId, exercise = exercise, overloadSuggestion = suggestion,
+                        restSeconds = te.restSeconds, history = history, supersetGroup = te.supersetGroup,
+                        targetSets = te.targetSets, targetReps = te.targetReps
+                    )
                 }
-                _activeWorkout.value = ActiveWorkoutState(workoutLog = savedLog, exercises = activeExercises, isActive = true)
+                _activeWorkout.value = ActiveWorkoutState(
+                    workoutLog = savedLog, exercises = activeExercises,
+                    isActive = true, isFromTemplate = true
+                )
             } else {
-                _activeWorkout.value = ActiveWorkoutState(workoutLog = savedLog, isActive = true)
+                _activeWorkout.value = ActiveWorkoutState(workoutLog = savedLog, isActive = true, isFromTemplate = false)
             }
         }
     }
@@ -106,6 +161,70 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
                     } else ae
                 })
             }
+
+            // Check if current group is now completed and auto-advance
+            val state = _activeWorkout.value
+            val currentGroup = state.currentGroup
+            if (currentGroup != null && currentGroup.isCompleted) {
+                val nextIndex = state.currentGroupIndex + 1
+                if (nextIndex < state.groups.size) {
+                    _activeWorkout.value = state.copy(currentGroupIndex = nextIndex)
+                }
+            }
+        }
+    }
+
+    fun updateSet(updatedSet: SetLog) {
+        viewModelScope.launch {
+            repository.updateSetLog(updatedSet)
+            _activeWorkout.value = _activeWorkout.value.let { state ->
+                state.copy(exercises = state.exercises.map { ae ->
+                    if (ae.exerciseLogId == updatedSet.exerciseLogId) {
+                        ae.copy(sets = ae.sets.map { s -> if (s.id == updatedSet.id) updatedSet else s })
+                    } else ae
+                })
+            }
+        }
+    }
+
+    fun markExerciseDone(exerciseLogId: Long) {
+        _activeWorkout.value = _activeWorkout.value.let { state ->
+            val newExercises = state.exercises.map { ae ->
+                if (ae.exerciseLogId == exerciseLogId) ae.copy(isManuallyDone = true) else ae
+            }
+            state.copy(exercises = newExercises)
+        }
+        // Auto-advance if current group is now done
+        val state = _activeWorkout.value
+        val currentGroup = state.currentGroup
+        if (currentGroup != null && currentGroup.isCompleted) {
+            val nextIndex = state.currentGroupIndex + 1
+            if (nextIndex < state.groups.size) {
+                _activeWorkout.value = state.copy(currentGroupIndex = nextIndex)
+            }
+        }
+    }
+
+    fun navigateToGroup(index: Int) {
+        val state = _activeWorkout.value
+        if (index in state.groups.indices) {
+            _activeWorkout.value = state.copy(currentGroupIndex = index)
+        }
+    }
+
+    fun nextGroup() {
+        val state = _activeWorkout.value
+        val nextIndex = state.currentGroupIndex + 1
+        if (nextIndex < state.groups.size) {
+            _activeWorkout.value = state.copy(currentGroupIndex = nextIndex)
+        }
+    }
+
+    fun previousGroup() {
+        val state = _activeWorkout.value
+        val prevIndex = state.currentGroupIndex - 1
+        if (prevIndex >= 0) {
+            _activeWorkout.value = state.copy(currentGroupIndex = prevIndex)
         }
     }
 
@@ -125,7 +244,6 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
         }
     }
 
-    // Quick log for bodyweight / random exercises
     fun quickLog(exercise: Exercise, reps: Int, weight: Double? = null) {
         viewModelScope.launch {
             val log = WorkoutLog(
@@ -152,13 +270,29 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
                 kotlinx.coroutines.delay(1000)
                 _restTimerSeconds.value = _restTimerSeconds.value - 1
             }
+            if (_restTimerSeconds.value == 0) {
+                _timerFinishedEvent.tryEmit(Unit)
+            }
             _isTimerRunning.value = false
         }
+    }
+
+    fun skipRestTimer() {
+        _isTimerRunning.value = false
+        _restTimerSeconds.value = 0
     }
 
     fun stopRestTimer() {
         _isTimerRunning.value = false
         _restTimerSeconds.value = 0
+    }
+
+    fun playTimerSound(context: Context) {
+        try {
+            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            val ringtone = RingtoneManager.getRingtone(context, uri)
+            ringtone?.play()
+        } catch (_: Exception) { }
     }
 
     fun exportToCsv(onResult: (String) -> Unit) {
@@ -175,7 +309,6 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
                 val dur = row.durationSeconds?.toString() ?: ""
                 val reps = row.reps?.toString() ?: ""
                 val warmup = if (row.isWarmup) "Yes" else ""
-                // Escape exercise/workout names that might contain commas
                 val name = "\"${row.workoutName}\""
                 val exercise = "\"${row.exerciseName}\""
                 sb.appendLine("$date,$name,${row.workoutType},$duration,$exercise,${row.setNumber},$reps,$weight,$dur,$dist,$warmup")
