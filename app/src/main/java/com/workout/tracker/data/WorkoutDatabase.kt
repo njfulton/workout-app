@@ -5,8 +5,6 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
-import androidx.room.migration.Migration
-import androidx.sqlite.db.SupportSQLiteDatabase
 import com.workout.tracker.data.dao.ExerciseDao
 import com.workout.tracker.data.dao.ScheduleDao
 import com.workout.tracker.data.dao.WorkoutLogDao
@@ -37,26 +35,13 @@ abstract class WorkoutDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: WorkoutDatabase? = null
 
-        // Keep empty migrations so existing data is preserved across versions
-        private val MIGRATION_1_2 = object : Migration(1, 2) {
-            override fun migrate(db: SupportSQLiteDatabase) { /* no-op */ }
-        }
-        private val MIGRATION_2_3 = object : Migration(2, 3) {
-            override fun migrate(db: SupportSQLiteDatabase) { /* no-op */ }
-        }
-        private val MIGRATION_3_4 = object : Migration(3, 4) {
-            override fun migrate(db: SupportSQLiteDatabase) { /* no-op */ }
-        }
-
         fun getDatabase(context: Context): WorkoutDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     WorkoutDatabase::class.java,
                     "workout_database"
-                )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
-                    .build()
+                ).fallbackToDestructiveMigration().build()
                 INSTANCE = instance
                 instance
             }
