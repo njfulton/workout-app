@@ -37,6 +37,9 @@ interface ScheduleDao {
     """)
     fun getScheduleBetween(startDate: Long, endDate: Long): Flow<List<ScheduledWorkoutWithTemplate>>
 
+    @Query("SELECT * FROM scheduled_workouts ORDER BY scheduledDate ASC")
+    suspend fun getAllScheduledWorkoutsList(): List<ScheduledWorkout>
+
     @Query("DELETE FROM scheduled_workouts WHERE scheduledDate >= :fromDate AND isCompleted = 0")
     suspend fun deleteFutureIncomplete(fromDate: Long)
 

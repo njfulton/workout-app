@@ -1,6 +1,8 @@
 package com.workout.tracker.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -28,6 +30,7 @@ sealed class Screen(val route: String) {
         fun createRoute(templateId: Long) = "edit_template/$templateId"
     }
     object SavedRoutines : Screen("saved_routines")
+    object BackupRestore : Screen("backup_restore")
 }
 
 @Composable
@@ -133,6 +136,17 @@ fun WorkoutNavHost(navController: NavHostController) {
                 navController = navController,
                 templateViewModel = templateViewModel,
                 scheduleViewModel = scheduleViewModel
+            )
+        }
+        composable(Screen.BackupRestore.route) {
+            val context = LocalContext.current
+            val app = context.applicationContext as com.workout.tracker.WorkoutApp
+            val backupManager = remember {
+                com.workout.tracker.data.BackupManager(context, app.repository, app.database)
+            }
+            BackupRestoreScreen(
+                navController = navController,
+                backupManager = backupManager
             )
         }
     }

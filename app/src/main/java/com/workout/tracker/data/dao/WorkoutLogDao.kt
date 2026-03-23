@@ -137,4 +137,7 @@ interface WorkoutLogDao {
 
     @Delete
     suspend fun deleteSetLog(setLog: SetLog)
+
+    @Query("SELECT * FROM workout_logs ORDER BY startTime DESC")
+    suspend fun getAllWorkoutLogsList(): List<WorkoutLog>
 }

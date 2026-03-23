@@ -155,6 +155,21 @@ fun HomeScreen(
                 }
             }
 
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    QuickActionCard(
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.Default.Backup,
+                        label = "Backup\n& Restore",
+                        onClick = { navController.navigate(Screen.BackupRestore.route) }
+                    )
+                    Spacer(Modifier.weight(1f))
+                }
+            }
+
             // Upcoming schedule
             if (upcomingSchedule.isNotEmpty()) {
                 item {

@@ -13,6 +13,12 @@ interface SavedRoutineDao {
     @Query("SELECT * FROM saved_routines WHERE id = :id")
     suspend fun getSavedRoutineById(id: Long): SavedRoutine?
 
+    @Query("SELECT * FROM saved_routines ORDER BY createdAt DESC")
+    suspend fun getAllSavedRoutinesList(): List<SavedRoutine>
+
+    @Query("SELECT * FROM routine_usage_history WHERE savedRoutineId = :routineId ORDER BY startDate DESC")
+    suspend fun getUsageHistoryList(routineId: Long): List<RoutineUsageHistory>
+
     @Insert
     suspend fun insert(routine: SavedRoutine): Long
 
