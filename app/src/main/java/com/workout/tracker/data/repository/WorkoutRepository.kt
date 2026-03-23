@@ -22,6 +22,7 @@ class WorkoutRepository(
     suspend fun updateExercise(exercise: Exercise) = exerciseDao.update(exercise)
     suspend fun deleteExercise(exercise: Exercise) = exerciseDao.delete(exercise)
     suspend fun getExerciseCount(): Int = exerciseDao.getCount()
+    suspend fun getExerciseByName(name: String): Exercise? = exerciseDao.getExerciseByName(name)
 
     // Templates
     val allTemplates: Flow<List<TemplateWithExerciseCount>> = templateDao.getAllTemplatesWithCount()
@@ -51,6 +52,7 @@ class WorkoutRepository(
     suspend fun updateWorkoutLog(log: WorkoutLog) = workoutLogDao.updateWorkoutLog(log)
     suspend fun updateSetLog(log: SetLog) = workoutLogDao.updateSetLog(log)
     suspend fun deleteWorkoutLog(log: WorkoutLog) = workoutLogDao.deleteWorkoutLog(log)
+    suspend fun insertSetLogs(logs: List<SetLog>) = workoutLogDao.insertSetLogs(logs)
 
     // Schedule
     fun getUpcomingSchedule(fromDate: Long): Flow<List<ScheduledWorkoutWithTemplate>> = scheduleDao.getUpcomingSchedule(fromDate)

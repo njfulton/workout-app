@@ -73,6 +73,9 @@ interface WorkoutLogDao {
     @Insert
     suspend fun insertSetLog(setLog: SetLog): Long
 
+    @Insert
+    suspend fun insertSetLogs(setLogs: List<SetLog>)
+
     @Update
     suspend fun updateWorkoutLog(workoutLog: WorkoutLog)
 
