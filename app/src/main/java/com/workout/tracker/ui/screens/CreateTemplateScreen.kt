@@ -199,6 +199,30 @@ fun CreateTemplateScreen(
                                         )
                                     }
                                 }
+                                // Move up button
+                                if (index > 0) {
+                                    IconButton(
+                                        onClick = {
+                                            val item = selectedExercises.removeAt(index)
+                                            selectedExercises.add(index - 1, item)
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move up", modifier = Modifier.size(20.dp))
+                                    }
+                                }
+                                // Move down button
+                                if (index < selectedExercises.size - 1) {
+                                    IconButton(
+                                        onClick = {
+                                            val item = selectedExercises.removeAt(index)
+                                            selectedExercises.add(index + 1, item)
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Move down", modifier = Modifier.size(20.dp))
+                                    }
+                                }
                                 IconButton(onClick = { selectedExercises.removeAt(index) }) {
                                     Icon(Icons.Default.Close, contentDescription = "Remove", modifier = Modifier.size(20.dp))
                                 }

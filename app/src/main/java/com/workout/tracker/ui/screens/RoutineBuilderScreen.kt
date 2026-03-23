@@ -42,6 +42,8 @@ fun RoutineBuilderScreen(
     var clearFutureFirst by remember { mutableStateOf(true) }
     var showDatePicker by remember { mutableStateOf(false) }
     var dayAssignments by remember { mutableStateOf<Map<Int, List<DayOfWeek>>>(emptyMap()) }
+    var enableDeload by remember { mutableStateOf(false) }
+    var deloadEveryNWeeks by remember { mutableStateOf(4) }
 
     // Auto-generate routine name from selected templates
     LaunchedEffect(selectedTemplates) {
@@ -277,6 +279,46 @@ fun RoutineBuilderScreen(
                     }
                 }
 
+                // Deload settings
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = enableDeload, onCheckedChange = { enableDeload = it })
+                        Spacer(Modifier.width(4.dp))
+                        Text("Auto-insert deload weeks", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    if (enableDeload) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(start = 40.dp, top = 4.dp)
+                        ) {
+                            Text("Deload every", style = MaterialTheme.typography.bodySmall)
+                            Spacer(Modifier.width(8.dp))
+                            IconButton(
+                                onClick = { if (deloadEveryNWeeks > 2) deloadEveryNWeeks-- },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(Icons.Default.Remove, contentDescription = "Decrease", modifier = Modifier.size(16.dp))
+                            }
+                            Text("$deloadEveryNWeeks", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                            IconButton(
+                                onClick = { deloadEveryNWeeks++ },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = "Increase", modifier = Modifier.size(16.dp))
+                            }
+                            Spacer(Modifier.width(4.dp))
+                            Text("weeks", style = MaterialTheme.typography.bodySmall)
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Deload weeks will be labeled so you know to reduce volume (~60% of normal sets/weight)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 40.dp)
+                        )
+                    }
+                }
+
                 // Day assignments
                 item {
                     Text("Day Assignments", style = MaterialTheme.typography.labelMedium)
@@ -320,7 +362,8 @@ fun RoutineBuilderScreen(
                                 dayAssignments = dayAssignments,
                                 weeks = weekCount,
                                 startDate = startDate,
-                                clearFutureFirst = clearFutureFirst
+                                clearFutureFirst = clearFutureFirst,
+                                deloadEveryNWeeks = if (enableDeload) deloadEveryNWeeks else null
                             )
                         },
                         modifier = Modifier.fillMaxWidth(),

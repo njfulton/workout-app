@@ -40,6 +40,19 @@ data class WorkoutLogSummary(
     val exerciseCount: Int
 )
 
+data class ExerciseProgressEntry(
+    val workoutDate: Long,
+    val maxWeight: Double,
+    val totalVolume: Double,
+    val totalSets: Int
+)
+
+data class MuscleGroupVolume(
+    val muscleGroup: String,
+    val totalSets: Int,
+    val totalVolume: Double
+)
+
 @Dao
 interface WorkoutLogDao {
     @Query("""
@@ -110,6 +123,34 @@ interface WorkoutLogDao {
         ORDER BY w.startTime DESC, el.orderIndex ASC, sl.setNumber ASC
     """)
     suspend fun getAllDataForExport(): List<ExportRow>
+
+    @Query("""
+        SELECT w.startTime as workoutDate,
+               MAX(sl.weightLbs) as maxWeight,
+               SUM(sl.weightLbs * sl.reps) as totalVolume,
+               COUNT(sl.id) as totalSets
+        FROM set_logs sl
+        INNER JOIN exercise_logs el ON sl.exerciseLogId = el.id
+        INNER JOIN workout_logs w ON el.workoutLogId = w.id
+        WHERE el.exerciseId = :exerciseId AND sl.isWarmup = 0 AND sl.weightLbs IS NOT NULL
+        GROUP BY w.id
+        ORDER BY w.startTime ASC
+    """)
+    suspend fun getExerciseProgressData(exerciseId: Long): List<ExerciseProgressEntry>
+
+    @Query("""
+        SELECT e.muscleGroup as muscleGroup,
+               COUNT(sl.id) as totalSets,
+               COALESCE(SUM(sl.weightLbs * sl.reps), 0.0) as totalVolume
+        FROM set_logs sl
+        INNER JOIN exercise_logs el ON sl.exerciseLogId = el.id
+        INNER JOIN workout_logs w ON el.workoutLogId = w.id
+        INNER JOIN exercises e ON el.exerciseId = e.id
+        WHERE w.startTime >= :startDate AND w.startTime <= :endDate AND sl.isWarmup = 0
+        GROUP BY e.muscleGroup
+        ORDER BY totalSets DESC
+    """)
+    suspend fun getMuscleGroupVolume(startDate: Long, endDate: Long): List<MuscleGroupVolume>
 
     @Insert
     suspend fun insertWorkoutLog(workoutLog: WorkoutLog): Long

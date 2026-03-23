@@ -308,6 +308,25 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
         } catch (_: Exception) { }
     }
 
+    // Exercise progress
+    private val _exerciseProgress = MutableStateFlow<List<com.workout.tracker.data.dao.ExerciseProgressEntry>>(emptyList())
+    val exerciseProgress: StateFlow<List<com.workout.tracker.data.dao.ExerciseProgressEntry>> = _exerciseProgress
+
+    private val _progressExerciseName = MutableStateFlow("")
+    val progressExerciseName: StateFlow<String> = _progressExerciseName
+
+    fun loadExerciseProgress(exerciseId: Long, exerciseName: String) {
+        _progressExerciseName.value = exerciseName
+        viewModelScope.launch {
+            _exerciseProgress.value = repository.getExerciseProgressData(exerciseId)
+        }
+    }
+
+    fun clearExerciseProgress() {
+        _exerciseProgress.value = emptyList()
+        _progressExerciseName.value = ""
+    }
+
     // Workout detail
     private val _workoutDetail = MutableStateFlow<WorkoutDetail?>(null)
     val workoutDetail: StateFlow<WorkoutDetail?> = _workoutDetail

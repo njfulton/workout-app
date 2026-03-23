@@ -34,6 +34,9 @@ sealed class Screen(val route: String) {
     object Pushups : Screen("pushups")
     object WeeklySummary : Screen("weekly_summary")
     object RoutineBuilder : Screen("routine_builder")
+    object ExerciseProgress : Screen("exercise_progress/{exerciseId}") {
+        fun createRoute(exerciseId: Long) = "exercise_progress/$exerciseId"
+    }
 }
 
 @Composable
@@ -54,7 +57,11 @@ fun WorkoutNavHost(navController: NavHostController) {
         composable(Screen.Exercises.route) {
             ExerciseListScreen(
                 navController = navController,
-                viewModel = exerciseViewModel
+                viewModel = exerciseViewModel,
+                onExerciseProgressClick = { exerciseId, exerciseName ->
+                    workoutViewModel.loadExerciseProgress(exerciseId, exerciseName)
+                    navController.navigate(Screen.ExerciseProgress.createRoute(exerciseId))
+                }
             )
         }
         composable(Screen.Templates.route) {
@@ -172,6 +179,17 @@ fun WorkoutNavHost(navController: NavHostController) {
             WeeklySummaryScreen(
                 navController = navController,
                 repository = app.repository
+            )
+        }
+        composable(
+            Screen.ExerciseProgress.route,
+            arguments = listOf(navArgument("exerciseId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val exerciseId = backStackEntry.arguments?.getLong("exerciseId") ?: return@composable
+            ExerciseProgressScreen(
+                navController = navController,
+                workoutViewModel = workoutViewModel,
+                exerciseId = exerciseId
             )
         }
     }

@@ -58,6 +58,8 @@ class WorkoutRepository(
     suspend fun insertSetLogs(logs: List<SetLog>) = workoutLogDao.insertSetLogs(logs)
     suspend fun getExerciseHistory(exerciseId: Long, limit: Int = 50): List<ExerciseHistoryEntry> = workoutLogDao.getExerciseHistory(exerciseId, limit)
     suspend fun getAllDataForExport() = workoutLogDao.getAllDataForExport()
+    suspend fun getMuscleGroupVolume(start: Long, end: Long) = workoutLogDao.getMuscleGroupVolume(start, end)
+    suspend fun getExerciseProgressData(exerciseId: Long) = workoutLogDao.getExerciseProgressData(exerciseId)
 
     // Schedule
     fun getUpcomingSchedule(fromDate: Long): Flow<List<ScheduledWorkoutWithTemplate>> = scheduleDao.getUpcomingSchedule(fromDate)

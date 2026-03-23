@@ -26,6 +26,19 @@ class WorkoutApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        // Set up notifications
+        com.workout.tracker.notification.WorkoutNotificationHelper.createNotificationChannel(this)
+        val prefs = getSharedPreferences("workout_prefs", MODE_PRIVATE)
+        if (prefs.getBoolean("notifications_enabled", true)) {
+            val hour = prefs.getInt("notification_hour", 8)
+            val minute = prefs.getInt("notification_minute", 0)
+            com.workout.tracker.notification.WorkoutNotificationHelper.scheduleDailyReminder(this, hour, minute)
+            if (!prefs.contains("notifications_enabled")) {
+                prefs.edit().putBoolean("notifications_enabled", true).apply()
+            }
+        }
+
         applicationScope.launch {
             if (repository.getExerciseCount() == 0) {
                 // Seed default exercises first

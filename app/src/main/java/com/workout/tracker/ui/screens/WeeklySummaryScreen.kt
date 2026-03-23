@@ -15,7 +15,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.workout.tracker.data.dao.MuscleGroupVolume
 import com.workout.tracker.data.dao.WorkoutLogSummary
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import com.workout.tracker.data.repository.WorkoutRepository
 import com.workout.tracker.ui.navigation.Screen
 import kotlinx.coroutines.flow.map
@@ -55,6 +59,11 @@ fun WeeklySummaryScreen(
     val totalWorkoutMinutes = workouts.sumOf { w ->
         val end = w.endTime ?: w.startTime
         ((end - w.startTime) / 60000).toInt()
+    }
+
+    var muscleGroupVolume by remember { mutableStateOf<List<MuscleGroupVolume>>(emptyList()) }
+    LaunchedEffect(startMillis, endMillis) {
+        muscleGroupVolume = repository.getMuscleGroupVolume(startMillis, endMillis)
     }
 
     val dateFormatter = DateTimeFormatter.ofPattern("MMM d")
@@ -127,6 +136,55 @@ fun WeeklySummaryScreen(
                         value = "$totalPushups",
                         label = "Pushups"
                     )
+                }
+            }
+
+            // Muscle group volume
+            if (muscleGroupVolume.isNotEmpty()) {
+                item {
+                    Text(
+                        "Volume by Muscle Group",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                item {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            val maxSets = muscleGroupVolume.maxOf { it.totalSets }
+                            muscleGroupVolume.forEach { mgv ->
+                                val name = mgv.muscleGroup.lowercase().replace("_", " ")
+                                    .replaceFirstChar { it.uppercase() }
+                                val fraction = mgv.totalSets.toFloat() / maxSets.coerceAtLeast(1)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        name,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.width(90.dp)
+                                    )
+                                    Box(modifier = Modifier.weight(1f).height(20.dp)) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxHeight()
+                                                .fillMaxWidth(fraction)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(MaterialTheme.colorScheme.primary)
+                                        )
+                                    }
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        "${mgv.totalSets} sets",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.width(52.dp),
+                                        textAlign = TextAlign.End
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
 

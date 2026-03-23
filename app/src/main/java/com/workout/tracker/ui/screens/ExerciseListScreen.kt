@@ -22,7 +22,8 @@ import com.workout.tracker.ui.viewmodel.ExerciseViewModel
 @Composable
 fun ExerciseListScreen(
     navController: NavController,
-    viewModel: ExerciseViewModel
+    viewModel: ExerciseViewModel,
+    onExerciseProgressClick: (Long, String) -> Unit = { _, _ -> }
 ) {
     val exercises by viewModel.exercises.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
@@ -113,7 +114,12 @@ fun ExerciseListScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(exercises, key = { it.id }) { exercise ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            onExerciseProgressClick(exercise.id, exercise.name)
+                        }
+                    ) {
                         Row(
                             modifier = Modifier.padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -125,6 +131,9 @@ fun ExerciseListScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                            }
+                            IconButton(onClick = { onExerciseProgressClick(exercise.id, exercise.name) }) {
+                                Icon(Icons.Default.TrendingUp, contentDescription = "Progress", tint = MaterialTheme.colorScheme.primary)
                             }
                             if (exercise.isCustom) {
                                 IconButton(onClick = { viewModel.deleteExercise(exercise) }) {

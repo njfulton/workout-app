@@ -275,7 +275,8 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
         dayAssignments: Map<Int, List<java.time.DayOfWeek>>,
         weeks: Int,
         startDate: java.time.LocalDate,
-        clearFutureFirst: Boolean
+        clearFutureFirst: Boolean,
+        deloadEveryNWeeks: Int? = null
     ) {
         viewModelScope.launch {
             try {
@@ -286,7 +287,11 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
                 val today = java.time.LocalDate.now()
                 var scheduledCount = 0
 
+                var deloadWeekCount = 0
                 for (week in 1..weeks) {
+                    val isDeloadWeek = deloadEveryNWeeks != null && week > 1 && week % deloadEveryNWeeks == 0
+                    if (isDeloadWeek) deloadWeekCount++
+
                     val weekMonday = startDate.plusWeeks((week - 1).toLong())
                         .with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
 
@@ -301,7 +306,8 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
                             repository.insertScheduledWorkout(
                                 com.workout.tracker.data.entity.ScheduledWorkout(
                                     templateId = templateId,
-                                    scheduledDate = millis
+                                    scheduledDate = millis,
+                                    label = if (isDeloadWeek) "DELOAD" else null
                                 )
                             )
                             scheduledCount++
@@ -339,7 +345,8 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
                     )
                 )
 
-                _importResult.value = "Scheduled $scheduledCount workouts across $weeks weeks for \"$routineName\""
+                val deloadMsg = if (deloadEveryNWeeks != null && deloadWeekCount > 0) " ($deloadWeekCount deload weeks)" else ""
+                _importResult.value = "Scheduled $scheduledCount workouts across $weeks weeks$deloadMsg for \"$routineName\""
             } catch (e: Throwable) {
                 _importResult.value = "Failed to build routine: ${e.message}"
             }
