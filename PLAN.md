@@ -1,87 +1,87 @@
-# Workout App UX Improvements - Implementation Plan
+# Implementation Plan: Import Options + Calendar View
 
-## Overview
-9 user stories transforming the active workout experience into a focused, single-exercise view with smart defaults.
+## Feature 1: Import Screen — Start Date & Day-of-Week Mapping
 
-## Key Architectural Changes
+### Current behavior
+- `importRoutineFromText()` parses routines, creates templates, and auto-schedules starting from next Monday
+- Day mapping is hardcoded based on routine count (2→Mon/Wed, 3→Mon/Wed/Fri, etc.)
 
-### 1. ActiveExercise gets template metadata
-Add `targetSets` and `targetReps` fields (populated from TemplateExercise when starting from template, null for ad-hoc).
+### Changes
 
-### 2. Focused exercise view with navigation
-Replace the scrollable LazyColumn of all exercises with a single-exercise/superset view. Add:
-- `currentExerciseGroupIndex` to ActiveWorkoutState
-- Next/Back buttons at bottom of screen
-- "Exercise List" button in top bar → opens a bottom sheet showing all exercises with completion status, allowing jump-to
+**A. Two-phase import flow on ImportRoutineScreen.kt**
+1. Phase 1 (current): User pastes text, clicks "Import & Parse"
+2. Phase 2 (new): After parsing, show a **configuration step** before generating the schedule:
+   - **Start date picker** — defaults to today
+   - **Per-routine day picker** — for each parsed routine name, show a row of day-of-week toggles (Mon–Sun). Pre-select based on the current heuristic so it's not blank.
+   - **Week count** — auto-detected from text, shown as editable field
+   - "Generate Schedule" button to confirm
 
-### 3. No schema changes needed
-All features work with the existing DB schema. The `updateSetLog` DAO method already exists for editing sets.
+**B. Split TemplateViewModel import logic**
+- New method: `parseRoutineText(text): List<ParsedRoutineInfo>` — returns routine names + detected week count without creating anything yet. This feeds Phase 2 UI.
+- Modify `importRoutineFromText()` to accept new params:
+  ```kotlin
+  fun importRoutineFromText(
+      text: String,
+      startDate: LocalDate,
+      dayAssignments: Map<Int, List<DayOfWeek>>  // routineIndex → days
+  )
+  ```
+- Update `generateScheduleWithProgression()` to use the user-specified start date and day assignments instead of hardcoded patterns.
+
+### Files to modify
+- `ImportRoutineScreen.kt` — add Phase 2 configuration UI
+- `TemplateViewModel.kt` — split parse/import, accept day assignments + start date
 
 ---
 
-## Implementation Steps
+## Feature 2: Calendar View (replaces Schedule list)
 
-### Step 1: Fix destructive migration (Story 1)
-**File:** `WorkoutDatabase.kt`
-- Remove `.fallbackToDestructiveMigration()`
-- Add empty migration stubs for v1→v2, v2→v3, v3→v4 (existing versions)
-- Future schema changes will require explicit migrations
+### Design
+Replace the current `LazyColumn` list in `ScheduleScreen.kt` with a **monthly calendar grid**.
 
-### Step 2: Add targetSets/targetReps to ActiveExercise (Stories 4, 6, 8)
-**File:** `WorkoutViewModel.kt`
-- Add `targetSets: Int?` and `targetReps: Int?` to `ActiveExercise` data class
-- Populate from `TemplateExercise` during `startWorkout()` when template-based
-- Leave null for ad-hoc exercises
+**Calendar grid layout:**
+- Header: `< March 2026 >` with month navigation arrows
+- Day-of-week headers: Mon Tue Wed Thu Fri Sat Sun
+- 5–6 rows of day cells in a grid
 
-### Step 3: Add currentExerciseGroupIndex + focused navigation (Stories 5, 6)
-**File:** `WorkoutViewModel.kt`
-- Add `currentExerciseGroupIndex: Int` to `ActiveWorkoutState`
-- Add `nextExercise()`, `previousExercise()`, `jumpToExercise(index)` functions
-- Add `markExerciseDone(exerciseLogId)` for ad-hoc workouts
-- Add auto-advance logic: after logging a set, if sets.size >= targetSets, auto-advance
+**Day cell contents:**
+- **Past completed workout**: Green checkmark
+- **Past missed workout** (scheduled but not completed, date has passed): Red X
+- **Past skipped workout**: Red X (same as missed)
+- **Today**: Highlighted border/background
+- **Future scheduled workout**: Template name (truncated) as small text, e.g. "Push Day"
+- **Rest day**: Subtle indicator or empty
+- **No workout**: Empty cell
 
-### Step 4: Add updateSet function (Story 7)
-**File:** `WorkoutViewModel.kt`
-- Add `updateSet(setLog: SetLog)` that calls `repository.updateSetLog()` and updates local state
+**Interactions:**
+- Tap a day → show bottom sheet or dialog with full details (workout name, status, action buttons: Start/Done/Skip/Move — reuse existing action logic from ScheduleItemCard)
 
-### Step 5: Rest timer enhancements (Stories 2, 9)
-**File:** `WorkoutViewModel.kt`
-- Add sound playback when timer reaches 0 (use Android MediaPlayer with system notification sound)
-- Timer already auto-stops; we just need to make the UI changes
+### Implementation
 
-### Step 6: Rewrite ActiveWorkoutScreen UI (Stories 2, 3, 4, 5, 6, 7, 8, 9)
-**File:** `ActiveWorkoutScreen.kt` — major rewrite
+**A. ScheduleViewModel changes**
+- Add `getScheduleForMonth(year, month)` — queries `getScheduleBetween()` for the full month range
+- Add state for `currentMonth: YearMonth` and `monthSchedule: List<ScheduledWorkoutWithTemplate>`
+- Determine "missed" status: scheduled date < today AND !isCompleted AND !isSkipped
 
-**Top bar:** Workout name, elapsed time, "Exercise List" button (opens bottom sheet)
+**B. ScheduleScreen.kt rewrite**
+- Replace LazyColumn with a custom calendar Composable
+- `CalendarGrid` composable:
+  - Takes `YearMonth`, `List<ScheduledWorkoutWithTemplate>`, callbacks
+  - Renders 7-column grid using `Column` + `Row` (no LazyGrid needed for 42 cells)
+  - Each cell shows status indicator
+- Keep FAB for manual scheduling
+- Day tap opens a detail dialog/bottom sheet with existing action buttons
 
-**Main content — single exercise/superset view:**
-- Exercise name + "Set X of Y" (or just set count for ad-hoc)
-- Last workout summary (already added)
-- Overload suggestion
-- Logged sets list — each set tappable for inline editing (shows editable reps/weight fields)
-- Input area for next set:
-  - Reps pre-filled from targetReps (template) or blank (ad-hoc)
-  - Weight pre-filled from last completed set (this session first, then history)
-  - Warmup checkbox
-  - "Log Set" button
-- For ad-hoc: "Mark Done" button when user is finished with exercise
+**C. ScheduleDao** — already has `getScheduleBetween()`, no changes needed
 
-**Rest timer overlay:**
-- When active: prominent card/overlay with countdown, "Skip" button
-- When done: plays sound, card disappears
-- Keep screen on: add `KeepScreenOn()` side effect
+### Files to modify
+- `ScheduleScreen.kt` — full rewrite to calendar view
+- `ScheduleViewModel.kt` — add month-based query + state
 
-**Bottom navigation:**
-- Back button (disabled on first exercise)
-- Progress indicator: "Exercise 2 of 5"
-- Next button (disabled on last exercise, or auto-advances)
+---
 
-**Exercise list bottom sheet:**
-- Shows all exercises with checkmarks for completed ones
-- Tap to jump to any exercise
-- Shows set progress (e.g., "3/4 sets") for each
-
-### Step 7: Keep screen on (Story 3)
-**File:** `ActiveWorkoutScreen.kt`
-- Use Compose `DisposableEffect` with `WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON`
-- Only active while on ActiveWorkoutScreen
+## Implementation Order
+1. TemplateViewModel — split parse from import, add new params
+2. ImportRoutineScreen — add Phase 2 config UI
+3. ScheduleViewModel — add month query
+4. ScheduleScreen — calendar view rewrite
