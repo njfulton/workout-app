@@ -93,10 +93,102 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
         _importResult.value = null
     }
 
+    // Phase 1: Parse text and return routine info for user configuration
+    data class ParsedRoutineInfo(
+        val name: String,
+        val exerciseCount: Int
+    )
+    data class ParseResult(
+        val routines: List<ParsedRoutineInfo>,
+        val detectedWeeks: Int,
+        val defaultDayAssignments: Map<Int, List<java.time.DayOfWeek>>
+    )
+
+    private var _lastParsedText: String? = null
+    private var _lastParsedRoutines: List<ParsedRoutine>? = null
+
+    fun parseRoutineText(text: String): ParseResult? {
+        val routineBlocks = splitIntoRoutineBlocks(text)
+        if (routineBlocks.isEmpty()) return null
+
+        val parsedRoutines = routineBlocks.map { parseRoutineBlock(it) }
+            .filter { it.exercises.isNotEmpty() }
+        if (parsedRoutines.isEmpty()) return null
+
+        _lastParsedText = text
+        _lastParsedRoutines = parsedRoutines
+
+        val weeks = detectWeekCount(text)
+        val defaultDays = getDefaultDayAssignments(parsedRoutines.size)
+
+        return ParseResult(
+            routines = parsedRoutines.map { ParsedRoutineInfo(it.name, it.exercises.size) },
+            detectedWeeks = weeks,
+            defaultDayAssignments = defaultDays
+        )
+    }
+
+    private fun getDefaultDayAssignments(routineCount: Int): Map<Int, List<java.time.DayOfWeek>> {
+        val patterns = when (routineCount) {
+            1 -> listOf(listOf(java.time.DayOfWeek.MONDAY, java.time.DayOfWeek.WEDNESDAY, java.time.DayOfWeek.FRIDAY))
+            2 -> listOf(
+                listOf(java.time.DayOfWeek.MONDAY, java.time.DayOfWeek.THURSDAY),
+                listOf(java.time.DayOfWeek.TUESDAY, java.time.DayOfWeek.FRIDAY)
+            )
+            3 -> listOf(
+                listOf(java.time.DayOfWeek.MONDAY),
+                listOf(java.time.DayOfWeek.WEDNESDAY),
+                listOf(java.time.DayOfWeek.FRIDAY)
+            )
+            4 -> listOf(
+                listOf(java.time.DayOfWeek.MONDAY),
+                listOf(java.time.DayOfWeek.TUESDAY),
+                listOf(java.time.DayOfWeek.THURSDAY),
+                listOf(java.time.DayOfWeek.FRIDAY)
+            )
+            5 -> listOf(
+                listOf(java.time.DayOfWeek.MONDAY),
+                listOf(java.time.DayOfWeek.TUESDAY),
+                listOf(java.time.DayOfWeek.WEDNESDAY),
+                listOf(java.time.DayOfWeek.THURSDAY),
+                listOf(java.time.DayOfWeek.FRIDAY)
+            )
+            6 -> listOf(
+                listOf(java.time.DayOfWeek.MONDAY),
+                listOf(java.time.DayOfWeek.TUESDAY),
+                listOf(java.time.DayOfWeek.WEDNESDAY),
+                listOf(java.time.DayOfWeek.THURSDAY),
+                listOf(java.time.DayOfWeek.FRIDAY),
+                listOf(java.time.DayOfWeek.SATURDAY)
+            )
+            else -> (0 until routineCount).map { listOf(java.time.DayOfWeek.of((it % 7) + 1)) }
+        }
+        return patterns.mapIndexed { index, days -> index to days }.toMap()
+    }
+
+    // Phase 2: Import with user-configured settings
+    fun importWithSchedule(
+        startDate: java.time.LocalDate,
+        dayAssignments: Map<Int, List<java.time.DayOfWeek>>,
+        weeks: Int
+    ) {
+        val parsedRoutines = _lastParsedRoutines ?: return
+        val text = _lastParsedText ?: return
+        viewModelScope.launch {
+            try {
+                val result = createTemplatesAndSchedule(parsedRoutines, text, startDate, dayAssignments, weeks)
+                _importResult.value = result
+            } catch (e: Throwable) {
+                _importResult.value = "Import failed: ${e.message}"
+            }
+        }
+    }
+
+    // Legacy import (no config step)
     fun importRoutineFromText(text: String, completedTodayIndex: Int? = null) {
         viewModelScope.launch {
             try {
-                val result = parseAndImportRoutines(text, completedTodayIndex)
+                val result = parseAndImportRoutinesLegacy(text, completedTodayIndex)
                 _importResult.value = result
             } catch (e: Throwable) {
                 _importResult.value = "Import failed: ${e.message}"
@@ -118,8 +210,32 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
         val exercises: List<ParsedExercise>
     )
 
-    private suspend fun parseAndImportRoutines(text: String, completedTodayIndex: Int? = null): String {
-        // Split into multiple routines if present
+    private suspend fun createTemplatesAndSchedule(
+        parsedRoutines: List<ParsedRoutine>,
+        text: String,
+        startDate: java.time.LocalDate,
+        dayAssignments: Map<Int, List<java.time.DayOfWeek>>,
+        weeks: Int
+    ): String {
+        val createdTemplateIds = mutableListOf<Long>()
+        val results = mutableListOf<String>()
+
+        for (routine in parsedRoutines) {
+            val templateId = createTemplateFromParsed(routine)
+            createdTemplateIds.add(templateId)
+            results.add("\"${routine.name}\" (${routine.exercises.size} exercises)")
+        }
+
+        val progressionText = extractProgressionText(text)
+        val scheduleInfo = generateScheduleWithDayAssignments(
+            createdTemplateIds, weeks, startDate, dayAssignments, progressionText
+        )
+
+        val summary = "Imported ${results.size} routine(s):\n${results.joinToString("\n") { "  - $it" }}"
+        return "$summary\n\n$scheduleInfo"
+    }
+
+    private suspend fun parseAndImportRoutinesLegacy(text: String, completedTodayIndex: Int? = null): String {
         val routineBlocks = splitIntoRoutineBlocks(text)
         if (routineBlocks.isEmpty()) return "No routines found"
 
@@ -134,11 +250,9 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
             results.add("\"${routine.name}\" (${routine.exercises.size} exercises)")
         }
 
-        // Auto-generate schedule if multiple routines (program import)
         var scheduleInfo = ""
         if (createdTemplateIds.size >= 2) {
             val weeks = detectWeekCount(text)
-            // Extract progression text (everything after the routines)
             val progressionText = extractProgressionText(text)
             scheduleInfo = generateScheduleWithProgression(
                 createdTemplateIds, weeks,
@@ -520,6 +634,56 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
         val completedNote = if (completedToday != null) "\nDay ${completedToday + 1} marked completed for today." else ""
 
         return "Scheduled $scheduledCount workouts across $weeks weeks (starting ${startDate})$phaseSummary$completedNote"
+    }
+
+    private suspend fun generateScheduleWithDayAssignments(
+        templateIds: List<Long>,
+        weeks: Int,
+        startDate: java.time.LocalDate,
+        dayAssignments: Map<Int, List<java.time.DayOfWeek>>,
+        progressionText: String = ""
+    ): String {
+        val phases = parsePhases(progressionText, weeks)
+        val today = java.time.LocalDate.now()
+        var scheduledCount = 0
+        val phaseLabels = mutableListOf<String>()
+
+        for (week in 0 until weeks) {
+            val weekMonday = startDate.plusWeeks(week.toLong())
+                .with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+            val phase = phases.find { week + 1 in it.weekRange }
+            val phaseLabel = phase?.label
+
+            for ((routineIndex, templateId) in templateIds.withIndex()) {
+                val days = dayAssignments[routineIndex] ?: continue
+                for (dow in days) {
+                    val date = weekMonday.with(dow)
+                    // For the first week, only schedule from startDate onward
+                    if (week == 0 && date.isBefore(startDate)) continue
+                    if (date.isBefore(today)) continue
+
+                    val millis = date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                    val label = if (phaseLabel != null) phaseLabel else null
+
+                    repository.insertScheduledWorkout(
+                        com.workout.tracker.data.entity.ScheduledWorkout(
+                            templateId = templateId,
+                            scheduledDate = millis,
+                            label = label
+                        )
+                    )
+                    scheduledCount++
+                }
+            }
+
+            if (phaseLabel != null && phaseLabel !in phaseLabels) phaseLabels.add(phaseLabel)
+        }
+
+        val phaseSummary = if (phaseLabels.isNotEmpty()) {
+            "\nPhases: ${phaseLabels.joinToString(", ")}"
+        } else ""
+
+        return "Scheduled $scheduledCount workouts across $weeks weeks (starting $startDate)$phaseSummary"
     }
 
     data class Phase(val label: String, val weekRange: IntRange)

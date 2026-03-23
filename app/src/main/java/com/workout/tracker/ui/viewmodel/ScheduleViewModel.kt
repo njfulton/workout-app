@@ -10,6 +10,7 @@ import com.workout.tracker.data.repository.WorkoutRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 
 class ScheduleViewModel(private val repository: WorkoutRepository) : ViewModel() {
@@ -18,6 +19,24 @@ class ScheduleViewModel(private val repository: WorkoutRepository) : ViewModel()
         repository.getUpcomingSchedule(
             LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Calendar state
+    private val _currentMonth = MutableStateFlow(YearMonth.now())
+    val currentMonth: StateFlow<YearMonth> = _currentMonth
+
+    val monthSchedule: StateFlow<List<ScheduledWorkoutWithTemplate>> = _currentMonth
+        .flatMapLatest { month ->
+            val startMillis = month.atDay(1)
+                .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val endMillis = month.atEndOfMonth()
+                .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() + 86400000 - 1
+            repository.getScheduleBetween(startMillis, endMillis)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun navigateMonth(delta: Int) {
+        _currentMonth.value = _currentMonth.value.plusMonths(delta.toLong())
+    }
 
     fun scheduleWorkout(templateId: Long, date: LocalDate) {
         viewModelScope.launch {
