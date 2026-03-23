@@ -30,17 +30,44 @@ data class TemplateExerciseEntry(
 fun CreateTemplateScreen(
     navController: NavController,
     templateViewModel: TemplateViewModel,
-    exerciseViewModel: ExerciseViewModel
+    exerciseViewModel: ExerciseViewModel,
+    editTemplateId: Long? = null
 ) {
+    val isEditing = editTemplateId != null
     var name by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     val selectedExercises = remember { mutableStateListOf<TemplateExerciseEntry>() }
     var showExercisePicker by remember { mutableStateOf(false) }
+    var loaded by remember { mutableStateOf(false) }
+
+    // Load existing template data when editing
+    LaunchedEffect(editTemplateId) {
+        if (editTemplateId != null && !loaded) {
+            val template = templateViewModel.getTemplateById(editTemplateId)
+            if (template != null) {
+                name = template.name
+                description = template.description ?: ""
+                val details = templateViewModel.getTemplateExerciseDetails(editTemplateId)
+                selectedExercises.clear()
+                selectedExercises.addAll(details.map { detail ->
+                    TemplateExerciseEntry(
+                        exercise = detail.exercise,
+                        config = TemplateExerciseConfig(
+                            sets = detail.templateExercise.targetSets,
+                            reps = detail.templateExercise.targetReps,
+                            restSeconds = detail.templateExercise.restSeconds
+                        )
+                    )
+                })
+            }
+            loaded = true
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Create Template") },
+                title = { Text(if (isEditing) "Edit Template" else "Create Template") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -49,11 +76,20 @@ fun CreateTemplateScreen(
                 actions = {
                     TextButton(
                         onClick = {
-                            templateViewModel.createTemplate(
-                                name = name,
-                                description = description.ifBlank { null },
-                                exercises = selectedExercises.map { it.exercise.id to it.config }
-                            )
+                            if (isEditing && editTemplateId != null) {
+                                templateViewModel.updateTemplate(
+                                    templateId = editTemplateId,
+                                    name = name,
+                                    description = description.ifBlank { null },
+                                    exercises = selectedExercises.map { it.exercise.id to it.config }
+                                )
+                            } else {
+                                templateViewModel.createTemplate(
+                                    name = name,
+                                    description = description.ifBlank { null },
+                                    exercises = selectedExercises.map { it.exercise.id to it.config }
+                                )
+                            }
                             navController.popBackStack()
                         },
                         enabled = name.isNotBlank() && selectedExercises.isNotEmpty()

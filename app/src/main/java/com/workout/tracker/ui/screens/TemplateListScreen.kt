@@ -16,6 +16,7 @@ import com.workout.tracker.data.entity.WorkoutTemplate
 import com.workout.tracker.ui.navigation.Screen
 import com.workout.tracker.ui.viewmodel.TemplateViewModel
 
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TemplateListScreen(
@@ -23,6 +24,8 @@ fun TemplateListScreen(
     viewModel: TemplateViewModel
 ) {
     val templates by viewModel.templates.collectAsStateWithLifecycle()
+    var showImportDialog by remember { mutableStateOf(false) }
+    val importResult by viewModel.importResult.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -31,6 +34,11 @@ fun TemplateListScreen(
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showImportDialog = true }) {
+                        Icon(Icons.Default.FileUpload, contentDescription = "Import Routine")
                     }
                 }
             )
@@ -47,7 +55,7 @@ fun TemplateListScreen(
                     Icon(Icons.Default.ViewList, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(16.dp))
                     Text("No templates yet", style = MaterialTheme.typography.titleMedium)
-                    Text("Create a template to get started", style = MaterialTheme.typography.bodyMedium)
+                    Text("Create a template or import one", style = MaterialTheme.typography.bodyMedium)
                 }
             }
         } else {
@@ -57,7 +65,10 @@ fun TemplateListScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(templates) { template ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { navController.navigate(Screen.EditTemplate.createRoute(template.id)) }
+                    ) {
                         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(template.name, style = MaterialTheme.typography.titleMedium)
@@ -77,4 +88,71 @@ fun TemplateListScreen(
             }
         }
     }
+
+    if (showImportDialog) {
+        ImportRoutineDialog(
+            onDismiss = { showImportDialog = false },
+            onImport = { text ->
+                viewModel.importRoutineFromText(text)
+                showImportDialog = false
+            }
+        )
+    }
+
+    // Show import result snackbar
+    importResult?.let { result ->
+        AlertDialog(
+            onDismissRequest = { viewModel.clearImportResult() },
+            title = { Text("Import Result") },
+            text = { Text(result) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.clearImportResult() }) { Text("OK") }
+            }
+        )
+    }
+}
+
+@Composable
+fun ImportRoutineDialog(
+    onDismiss: () -> Unit,
+    onImport: (String) -> Unit
+) {
+    var text by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Import Routine") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Paste a routine from AI. Example format:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                    Text(
+                        "Routine: Push Day\n---\nBench Press: 4x8 rest 90s\nIncline DB Press: 3x10 rest 60s\nCable Fly: 3x12 rest 45s",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                }
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    label = { Text("Paste routine here") },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 150.dp),
+                    maxLines = 20
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onImport(text) },
+                enabled = text.isNotBlank()
+            ) { Text("Import") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }

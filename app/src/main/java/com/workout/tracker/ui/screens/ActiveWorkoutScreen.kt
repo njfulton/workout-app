@@ -98,7 +98,8 @@ fun ActiveWorkoutScreen(
                     onLogSet = { setNum, reps, weight, isWarmup ->
                         workoutViewModel.logSet(activeExercise.exerciseLogId, setNum, reps, weight, isWarmup)
                     },
-                    onStartTimer = { workoutViewModel.startRestTimer(it) }
+                    onStartTimer = { workoutViewModel.startRestTimer(it) },
+                    defaultRestSeconds = activeExercise.restSeconds
                 )
             }
 
@@ -146,7 +147,8 @@ fun ActiveWorkoutScreen(
 fun ExerciseCard(
     activeExercise: ActiveExercise,
     onLogSet: (Int, Int, Double?, Boolean) -> Unit,
-    onStartTimer: (Int) -> Unit
+    onStartTimer: (Int) -> Unit,
+    defaultRestSeconds: Int = 90
 ) {
     var repsText by remember { mutableStateOf("") }
     var weightText by remember { mutableStateOf("") }
@@ -222,7 +224,7 @@ fun ExerciseCard(
                         repsText = ""
                         weightText = ""
                         isWarmup = false
-                        onStartTimer(90)
+                        onStartTimer(defaultRestSeconds)
                     },
                     enabled = repsText.toIntOrNull() != null
                 ) { Text("Log Set") }

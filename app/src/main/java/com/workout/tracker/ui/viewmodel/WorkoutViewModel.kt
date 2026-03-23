@@ -14,7 +14,8 @@ data class ActiveExercise(
     val exerciseLogId: Long,
     val exercise: Exercise,
     val sets: List<SetLog> = emptyList(),
-    val overloadSuggestion: OverloadSuggestion? = null
+    val overloadSuggestion: OverloadSuggestion? = null,
+    val restSeconds: Int = 90
 )
 
 data class ActiveWorkoutState(
@@ -58,7 +59,7 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
                         ExerciseLog(workoutLogId = logId, exerciseId = te.exerciseId, orderIndex = te.orderIndex)
                     )
                     val suggestion = repository.getProgressiveOverloadSuggestion(te.exerciseId)
-                    ActiveExercise(exerciseLogId = elId, exercise = exercise, overloadSuggestion = suggestion)
+                    ActiveExercise(exerciseLogId = elId, exercise = exercise, overloadSuggestion = suggestion, restSeconds = te.restSeconds)
                 }
                 _activeWorkout.value = ActiveWorkoutState(workoutLog = savedLog, exercises = activeExercises, isActive = true)
             } else {
