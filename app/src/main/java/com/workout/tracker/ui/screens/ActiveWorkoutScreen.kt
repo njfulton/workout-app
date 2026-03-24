@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.workout.tracker.data.entity.SetLog
+import com.workout.tracker.ui.navigation.Screen
 import com.workout.tracker.ui.viewmodel.ActiveExercise
 import com.workout.tracker.ui.viewmodel.ExerciseGroup
 import com.workout.tracker.ui.viewmodel.ExerciseViewModel
@@ -151,33 +153,39 @@ fun ActiveWorkoutScreen(
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)
         ) {
-            // Rest timer - prominent when active, hidden when not
+            // Rest timer - full-width centered when active
             if (isTimerRunning) {
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                Box(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    contentAlignment = Alignment.Center
                 ) {
                     Column(
-                        modifier = Modifier.padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("REST", style = MaterialTheme.typography.labelLarge)
+                        Text(
+                            "REST",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(12.dp))
                         Text(
                             "${restTimer / 60}:${(restTimer % 60).toString().padStart(2, '0')}",
-                            style = MaterialTheme.typography.displayMedium,
+                            fontSize = 96.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = MaterialTheme.colorScheme.primary
                         )
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(24.dp))
                         OutlinedButton(onClick = { workoutViewModel.skipRestTimer() }) {
-                            Text("Skip")
+                            Text("Skip", style = MaterialTheme.typography.titleMedium)
                         }
                     }
                 }
             }
 
-            // Current exercise/superset content
-            if (groups.isEmpty()) {
+            // Current exercise/superset content (hidden during rest timer)
+            if (isTimerRunning) {
+                // Timer fills the space above
+            } else if (groups.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -210,8 +218,36 @@ fun ActiveWorkoutScreen(
                             onUpdateSet = { workoutViewModel.updateSet(it) },
                             onStartTimer = { workoutViewModel.startRestTimer(it) },
                             onMarkDone = { workoutViewModel.markExerciseDone(currentGroup.exercises.first().exerciseLogId) },
-                            defaultRestSeconds = currentGroup.exercises.first().restSeconds
+                            defaultRestSeconds = currentGroup.exercises.first().restSeconds,
+                            onRestSecondsChanged = { workoutViewModel.updateExerciseRestSeconds(currentGroup.exercises.first().exerciseLogId, it) }
                         )
+                    }
+                    // Up next preview
+                    if (currentGroupIndex + 1 < groups.size) {
+                        val nextGroup = groups[currentGroupIndex + 1]
+                        Spacer(Modifier.height(16.dp))
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "Up next: ${nextGroup.label}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
                     Spacer(Modifier.height(80.dp))
                 }
@@ -252,7 +288,9 @@ fun ActiveWorkoutScreen(
                 TextButton(onClick = {
                     workoutViewModel.finishWorkout()
                     showFinishConfirm = false
-                    navController.popBackStack(route = "home", inclusive = false)
+                    navController.navigate(Screen.WorkoutSummary.route) {
+                        popUpTo(Screen.Home.route)
+                    }
                 }) { Text("Save") }
             },
             dismissButton = {
@@ -301,7 +339,8 @@ fun FocusedExerciseCard(
     onUpdateSet: (SetLog) -> Unit,
     onStartTimer: (Int) -> Unit,
     onMarkDone: () -> Unit,
-    defaultRestSeconds: Int = 90
+    defaultRestSeconds: Int = 90,
+    onRestSecondsChanged: ((Int) -> Unit)? = null
 ) {
     val nextSetNumber = activeExercise.sets.size + 1
     val targetSets = activeExercise.targetSets
@@ -385,8 +424,33 @@ fun FocusedExerciseCard(
                 Divider()
             }
 
+            // Rest time adjuster
+            var currentRestSeconds by remember(activeExercise.exerciseLogId) { mutableStateOf(defaultRestSeconds) }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(vertical = 4.dp)
+            ) {
+                Icon(Icons.Default.Timer, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.width(4.dp))
+                Text("Rest: ", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                IconButton(onClick = {
+                    currentRestSeconds = (currentRestSeconds - 15).coerceAtLeast(0)
+                    onRestSecondsChanged?.invoke(currentRestSeconds)
+                }, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.Remove, contentDescription = "Decrease rest", modifier = Modifier.size(16.dp))
+                }
+                Text("${currentRestSeconds}s", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                IconButton(onClick = {
+                    currentRestSeconds = (currentRestSeconds + 15).coerceAtMost(300)
+                    onRestSecondsChanged?.invoke(currentRestSeconds)
+                }, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.Add, contentDescription = "Increase rest", modifier = Modifier.size(16.dp))
+                }
+            }
+
+            Spacer(Modifier.height(4.dp))
+
             // New set input (show even if "done" so user can add extra sets)
-            Spacer(Modifier.height(8.dp))
             Text("Set $nextSetNumber", style = MaterialTheme.typography.labelMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
@@ -421,7 +485,7 @@ fun FocusedExerciseCard(
                         val weight = weightText.toDoubleOrNull()
                         onLogSet(nextSetNumber, reps, weight, isWarmup)
                         isWarmup = false
-                        onStartTimer(defaultRestSeconds)
+                        onStartTimer(currentRestSeconds)
                     },
                     enabled = repsText.toIntOrNull() != null
                 ) { Text("Log Set") }
@@ -627,16 +691,17 @@ fun FocusedSupersetCard(
                             val reps = repsText.toIntOrNull() ?: return@Button
                             val weight = weightText.toDoubleOrNull()
                             onLogSet(currentExercise.exerciseLogId, nextSetNumber, reps, weight, false)
-                            // Auto-advance to next exercise in superset, or start rest timer if last
+                            // Advance to next exercise in superset; start rest timer only after all exercises complete a set in this round
                             if (activeTab < exercises.size - 1) {
                                 activeTab++
                             } else {
+                                // All exercises in superset have logged a set this round
                                 activeTab = 0
                                 onStartTimer(restSeconds)
                             }
                         },
                         enabled = repsText.toIntOrNull() != null
-                    ) { Text("Log & Next") }
+                    ) { Text(if (activeTab < exercises.size - 1) "Log & Next" else "Log & Rest") }
                 }
             }
         }

@@ -38,6 +38,7 @@ sealed class Screen(val route: String) {
         fun createRoute(exerciseId: Long) = "exercise_progress/$exerciseId"
     }
     object Utilities : Screen("utilities")
+    object WorkoutSummary : Screen("workout_summary")
 }
 
 @Composable
@@ -195,6 +196,12 @@ fun WorkoutNavHost(navController: NavHostController) {
         }
         composable(Screen.Utilities.route) {
             UtilitiesScreen(
+                navController = navController,
+                workoutViewModel = workoutViewModel
+            )
+        }
+        composable(Screen.WorkoutSummary.route) {
+            WorkoutSummaryScreen(
                 navController = navController,
                 workoutViewModel = workoutViewModel
             )

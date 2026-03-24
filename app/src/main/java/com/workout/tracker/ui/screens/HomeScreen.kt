@@ -44,6 +44,8 @@ fun HomeScreen(
         .filter { it != nextWorkout }
         .take(4)
 
+    var showLifetimeStats by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -86,7 +88,7 @@ fun HomeScreen(
                 }
             }
 
-            // Dashboard stats row
+            // Dashboard stats row - tappable tiles
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -96,19 +98,22 @@ fun HomeScreen(
                         modifier = Modifier.weight(1f),
                         value = dashboardStats.currentStreak.toString(),
                         label = "Streak",
-                        icon = Icons.Default.LocalFireDepartment
+                        icon = Icons.Default.LocalFireDepartment,
+                        onClick = { navController.navigate(Screen.Schedule.route) }
                     )
                     DashboardStatCard(
                         modifier = Modifier.weight(1f),
                         value = dashboardStats.workoutsThisWeek.toString(),
                         label = "This Week",
-                        icon = Icons.Default.DateRange
+                        icon = Icons.Default.DateRange,
+                        onClick = { navController.navigate(Screen.WeeklySummary.route) }
                     )
                     DashboardStatCard(
                         modifier = Modifier.weight(1f),
                         value = dashboardStats.totalWorkouts.toString(),
-                        label = "Total",
-                        icon = Icons.Default.EmojiEvents
+                        label = "Total Workouts",
+                        icon = Icons.Default.EmojiEvents,
+                        onClick = { showLifetimeStats = true }
                     )
                 }
             }
@@ -260,6 +265,38 @@ fun HomeScreen(
             item { Spacer(Modifier.height(16.dp)) }
         }
     }
+
+    // Lifetime stats dialog
+    if (showLifetimeStats) {
+        AlertDialog(
+            onDismissRequest = { showLifetimeStats = false },
+            title = { Text("Lifetime Stats") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    LifetimeStatRow(Icons.Default.EmojiEvents, "Total Workouts", "${dashboardStats.totalWorkouts}")
+                    LifetimeStatRow(Icons.Default.DateRange, "This Week", "${dashboardStats.workoutsThisWeek}")
+                    LifetimeStatRow(Icons.Default.LocalFireDepartment, "Current Streak", "${dashboardStats.currentStreak}")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showLifetimeStats = false }) { Text("Close") }
+            }
+        )
+    }
+}
+
+@Composable
+private fun LifetimeStatRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+    }
 }
 
 @Composable
@@ -267,9 +304,11 @@ private fun DashboardStatCard(
     modifier: Modifier = Modifier,
     value: String,
     label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: (() -> Unit)? = null
 ) {
     Card(
+        onClick = { onClick?.invoke() },
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {

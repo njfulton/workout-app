@@ -11,6 +11,7 @@ import com.workout.tracker.data.dao.FeatureUsageCount
 import com.workout.tracker.data.entity.*
 import com.workout.tracker.data.repository.OverloadSuggestion
 import com.workout.tracker.data.repository.WorkoutRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
@@ -105,6 +106,8 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
 
     private val _isTimerRunning = MutableStateFlow(false)
     val isTimerRunning: StateFlow<Boolean> = _isTimerRunning
+
+    private var timerJob: Job? = null
 
     // Timer completion event
     private val _timerFinishedEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -288,6 +291,14 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
         }
     }
 
+    fun updateExerciseRestSeconds(exerciseLogId: Long, restSeconds: Int) {
+        _activeWorkout.value = _activeWorkout.value.let { state ->
+            state.copy(exercises = state.exercises.map { ae ->
+                if (ae.exerciseLogId == exerciseLogId) ae.copy(restSeconds = restSeconds) else ae
+            })
+        }
+    }
+
     fun navigateToGroup(index: Int) {
         val state = _activeWorkout.value
         if (index in state.groups.indices) {
@@ -329,12 +340,44 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
         viewModelScope.launch {
             val state = _activeWorkout.value
             val log = state.workoutLog ?: return@launch
-            repository.updateWorkoutLog(log.copy(endTime = System.currentTimeMillis()))
+            val endTime = System.currentTimeMillis()
+            repository.updateWorkoutLog(log.copy(endTime = endTime))
             // Mark the scheduled workout as completed now that we're actually saving
             state.scheduledWorkoutId?.let { id ->
                 repository.setScheduledWorkoutCompleted(id, true)
             }
+
+            // Build workout summary
+            val durationMin = (endTime - log.startTime) / 60000
+            val exercises = state.exercises
+            val totalSets = exercises.sumOf { it.sets.count { s -> !s.isWarmup } }
+            val totalReps = exercises.sumOf { ex -> ex.sets.filter { !it.isWarmup }.sumOf { it.reps ?: 0 } }
+            val totalVolume = exercises.sumOf { ex ->
+                ex.sets.filter { !it.isWarmup }.sumOf { s -> (s.weightLbs ?: 0.0) * (s.reps ?: 0) }
+            }
+            val summaryExercises = exercises.map { ex ->
+                val nonWarmupSets = ex.sets.filter { !it.isWarmup }
+                val bestSet = nonWarmupSets.maxByOrNull { (it.weightLbs ?: 0.0) * (it.reps ?: 0) }
+                val bestStr = bestSet?.let {
+                    val w = it.weightLbs
+                    val r = it.reps
+                    if (w != null && w > 0) "${r} x ${w.toInt()} lbs" else "${r} reps"
+                } ?: ""
+                SummaryExercise(name = ex.exercise.name, sets = nonWarmupSets.size, bestSet = bestStr)
+            }.filter { it.sets > 0 }
+
+            _workoutSummary.value = WorkoutSummary(
+                workoutName = log.name,
+                durationMinutes = durationMin,
+                exerciseCount = summaryExercises.size,
+                totalSets = totalSets,
+                totalReps = totalReps,
+                totalVolume = totalVolume,
+                exercises = summaryExercises
+            )
+
             _activeWorkout.value = ActiveWorkoutState()
+            stopRestTimer()
             loadDashboardStats()
         }
     }
@@ -358,9 +401,11 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
     }
 
     fun startRestTimer(seconds: Int) {
+        // Cancel any existing timer to prevent overlapping countdowns
+        timerJob?.cancel()
         _restTimerSeconds.value = seconds
         _isTimerRunning.value = true
-        viewModelScope.launch {
+        timerJob = viewModelScope.launch {
             while (_restTimerSeconds.value > 0 && _isTimerRunning.value) {
                 kotlinx.coroutines.delay(1000)
                 _restTimerSeconds.value = _restTimerSeconds.value - 1
@@ -407,6 +452,30 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
     fun clearExerciseProgress() {
         _exerciseProgress.value = emptyList()
         _progressExerciseName.value = ""
+    }
+
+    // Workout summary (shown after finishing a workout)
+    data class WorkoutSummary(
+        val workoutName: String,
+        val durationMinutes: Long,
+        val exerciseCount: Int,
+        val totalSets: Int,
+        val totalReps: Int,
+        val totalVolume: Double,
+        val exercises: List<SummaryExercise>
+    )
+
+    data class SummaryExercise(
+        val name: String,
+        val sets: Int,
+        val bestSet: String
+    )
+
+    private val _workoutSummary = MutableStateFlow<WorkoutSummary?>(null)
+    val workoutSummary: StateFlow<WorkoutSummary?> = _workoutSummary
+
+    fun clearWorkoutSummary() {
+        _workoutSummary.value = null
     }
 
     // Workout detail

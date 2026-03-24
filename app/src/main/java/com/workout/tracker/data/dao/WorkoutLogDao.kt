@@ -66,6 +66,7 @@ interface WorkoutLogDao {
                COUNT(DISTINCT el.id) as exerciseCount
         FROM workout_logs w
         LEFT JOIN exercise_logs el ON w.id = el.workoutLogId
+        WHERE w.endTime IS NOT NULL
         GROUP BY w.id
         ORDER BY w.startTime DESC
     """)
@@ -112,7 +113,7 @@ interface WorkoutLogDao {
         FROM set_logs sl
         INNER JOIN exercise_logs el ON sl.exerciseLogId = el.id
         INNER JOIN workout_logs w ON el.workoutLogId = w.id
-        WHERE el.exerciseId = :exerciseId AND sl.isWarmup = 0
+        WHERE el.exerciseId = :exerciseId AND sl.isWarmup = 0 AND w.endTime IS NOT NULL
         ORDER BY w.startTime DESC, sl.setNumber ASC
         LIMIT :limit
     """)
