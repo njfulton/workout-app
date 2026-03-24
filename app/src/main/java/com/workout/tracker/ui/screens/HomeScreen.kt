@@ -299,6 +299,7 @@ private fun LifetimeStatRow(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DashboardStatCard(
     modifier: Modifier = Modifier,
