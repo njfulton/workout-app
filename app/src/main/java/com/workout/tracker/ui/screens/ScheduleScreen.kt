@@ -726,7 +726,7 @@ fun ScheduleWorkoutDialog(
                     }
                 }
 
-                HorizontalDivider()
+                @Suppress("DEPRECATION") Divider()
 
                 // Date selector
                 OutlinedButton(

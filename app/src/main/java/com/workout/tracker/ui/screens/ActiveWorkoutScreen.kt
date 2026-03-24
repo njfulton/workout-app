@@ -421,7 +421,7 @@ fun FocusedExerciseCard(
                     EditableSetRow(set = set, onUpdateSet = onUpdateSet)
                 }
                 Spacer(Modifier.height(8.dp))
-                HorizontalDivider()
+                @Suppress("DEPRECATION") Divider()
             }
 
             // Rest time adjuster
@@ -655,7 +655,7 @@ fun FocusedSupersetCard(
                         EditableSetRow(set = set, onUpdateSet = onUpdateSet)
                     }
                     Spacer(Modifier.height(8.dp))
-                    HorizontalDivider()
+                    @Suppress("DEPRECATION") Divider()
                 }
 
                 Spacer(Modifier.height(8.dp))

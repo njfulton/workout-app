@@ -192,7 +192,7 @@ fun SavedRoutineCard(
 
             if (isExpanded) {
                 Spacer(Modifier.height(12.dp))
-                HorizontalDivider()
+                @Suppress("DEPRECATION") Divider()
                 Spacer(Modifier.height(12.dp))
 
                 // Routine names with day assignments
