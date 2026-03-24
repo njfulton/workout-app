@@ -193,7 +193,6 @@ fun WorkoutNavHost(navController: NavHostController) {
                 exerciseId = exerciseId
             )
         }
-    }
         composable(Screen.Utilities.route) {
             UtilitiesScreen(
                 navController = navController,
