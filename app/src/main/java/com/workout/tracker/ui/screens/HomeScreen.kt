@@ -92,19 +92,19 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    StatCard(
+                    DashboardStatCard(
                         modifier = Modifier.weight(1f),
                         value = dashboardStats.currentStreak.toString(),
                         label = "Streak",
                         icon = Icons.Default.LocalFireDepartment
                     )
-                    StatCard(
+                    DashboardStatCard(
                         modifier = Modifier.weight(1f),
                         value = dashboardStats.workoutsThisWeek.toString(),
                         label = "This Week",
                         icon = Icons.Default.DateRange
                     )
-                    StatCard(
+                    DashboardStatCard(
                         modifier = Modifier.weight(1f),
                         value = dashboardStats.totalWorkouts.toString(),
                         label = "Total",
@@ -263,7 +263,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun StatCard(
+private fun DashboardStatCard(
     modifier: Modifier = Modifier,
     value: String,
     label: String,
