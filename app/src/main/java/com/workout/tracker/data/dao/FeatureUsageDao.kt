@@ -23,6 +23,9 @@ interface FeatureUsageDao {
     """)
     fun getUsageCounts(): Flow<List<FeatureUsageCount>>
 
+    @Query("SELECT * FROM feature_usage_logs ORDER BY timestamp DESC")
+    suspend fun getAllList(): List<FeatureUsageLog>
+
     @Query("DELETE FROM feature_usage_logs")
     suspend fun clearAll()
 }

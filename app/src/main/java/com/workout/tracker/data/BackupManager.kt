@@ -87,6 +87,11 @@ class BackupManager(
             val pushupLogs = pushupLogDao.getAllPushupLogsList()
             json.put("pushupLogs", pushupLogsToJson(pushupLogs))
 
+            // Feature usage logs
+            val featureUsageDao = database.featureUsageDao()
+            val featureUsageLogs = featureUsageDao.getAllList()
+            json.put("featureUsageLogs", featureUsageLogsToJson(featureUsageLogs))
+
             // Write to Downloads
             val fileName = "workout_backup_${dateFormat.format(Date())}.json"
             val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
@@ -233,7 +238,17 @@ class BackupManager(
                 }
             }
 
-            Result.success(ImportSummary(exerciseCount, templateCount, workoutLogCount, setLogCount, pushupCount))
+            // Import feature usage logs
+            var featureUsageCount = 0
+            if (json.has("featureUsageLogs")) {
+                val logs = jsonToFeatureUsageLogs(json.getJSONArray("featureUsageLogs"))
+                for (log in logs) {
+                    database.featureUsageDao().insert(log.copy(id = 0))
+                    featureUsageCount++
+                }
+            }
+
+            Result.success(ImportSummary(exerciseCount, templateCount, workoutLogCount, setLogCount, pushupCount, featureUsageCount))
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -553,11 +568,36 @@ class BackupManager(
         }
     }
 
+    // Feature usage log serialization
+    private fun featureUsageLogsToJson(logs: List<FeatureUsageLog>): JSONArray {
+        val arr = JSONArray()
+        for (l in logs) {
+            arr.put(JSONObject().apply {
+                put("id", l.id)
+                put("featureName", l.featureName)
+                put("timestamp", l.timestamp)
+            })
+        }
+        return arr
+    }
+
+    private fun jsonToFeatureUsageLogs(arr: JSONArray): List<FeatureUsageLog> {
+        return (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            FeatureUsageLog(
+                id = o.getLong("id"),
+                featureName = o.getString("featureName"),
+                timestamp = o.getLong("timestamp")
+            )
+        }
+    }
+
     data class ImportSummary(
         val exercisesImported: Int,
         val templatesImported: Int,
         val workoutLogsImported: Int,
         val setLogsImported: Int,
-        val pushupLogsImported: Int = 0
+        val pushupLogsImported: Int = 0,
+        val featureUsageLogsImported: Int = 0
     )
 }
