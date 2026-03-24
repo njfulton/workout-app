@@ -482,9 +482,17 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
     private val _workoutDetail = MutableStateFlow<WorkoutDetail?>(null)
     val workoutDetail: StateFlow<WorkoutDetail?> = _workoutDetail
 
+    private val _workoutDetailError = MutableStateFlow(false)
+    val workoutDetailError: StateFlow<Boolean> = _workoutDetailError
+
     fun loadWorkoutDetail(workoutLogId: Long) {
+        _workoutDetailError.value = false
         viewModelScope.launch {
-            val log = repository.getWorkoutLogById(workoutLogId) ?: return@launch
+            val log = repository.getWorkoutLogById(workoutLogId)
+            if (log == null) {
+                _workoutDetailError.value = true
+                return@launch
+            }
             val exerciseLogs = repository.getExerciseLogs(workoutLogId)
             val exercises = exerciseLogs.map { el ->
                 val exercise = repository.getExerciseById(el.exerciseId)
@@ -507,6 +515,7 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
 
     fun clearWorkoutDetail() {
         _workoutDetail.value = null
+        _workoutDetailError.value = false
     }
 
     fun exportToCsv(onResult: (String) -> Unit) {

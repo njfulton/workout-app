@@ -35,6 +35,7 @@ fun WorkoutDetailScreen(
     }
 
     val detail by viewModel.workoutDetail.collectAsStateWithLifecycle()
+    val hasError by viewModel.workoutDetailError.collectAsStateWithLifecycle()
     val dateFormat = remember { SimpleDateFormat("EEEE, MMM d, yyyy", Locale.getDefault()) }
     val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
 
@@ -50,133 +51,166 @@ fun WorkoutDetailScreen(
             )
         }
     ) { padding ->
-        if (detail == null) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else {
-            val workout = detail!!
-            val log = workout.workoutLog
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Summary card
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                when (log.workoutType) {
-                                    WorkoutType.STRENGTH -> Icons.Default.FitnessCenter
-                                    WorkoutType.CARDIO -> Icons.Default.DirectionsRun
-                                    WorkoutType.PELOTON -> Icons.Default.PedalBike
-                                    WorkoutType.BODYWEIGHT_QUICK -> Icons.Default.Bolt
-                                    WorkoutType.OTHER -> Icons.Default.SportsGymnastics
-                                },
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(28.dp)
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text(dateFormat.format(Date(log.startTime)), style = MaterialTheme.typography.bodyMedium)
-                                Text(timeFormat.format(Date(log.startTime)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-
+        when {
+            hasError -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.ErrorOutline, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.error)
                         Spacer(Modifier.height(12.dp))
-
-                        // Stats row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            // Duration
-                            if (log.endTime != null) {
-                                val totalMin = (log.endTime - log.startTime) / 60000
-                                StatItem(
-                                    label = "Duration",
-                                    value = if (totalMin >= 60) "${totalMin / 60}h ${totalMin % 60}m" else "${totalMin}m"
-                                )
-                            }
-                            StatItem(label = "Exercises", value = "${workout.exercises.size}")
-                            StatItem(label = "Sets", value = "${workout.totalSets}")
-                            if (workout.totalVolume > 0) {
-                                StatItem(
-                                    label = "Volume",
-                                    value = "${(workout.totalVolume / 1000).let { if (it >= 1) "%.1fk".format(it) else "%.0f".format(workout.totalVolume) }} lbs"
-                                )
-                            }
+                        Text("Workout not found", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(onClick = { navController.popBackStack() }) {
+                            Text("Go Back")
                         }
                     }
                 }
-
-                // Notes
-                if (!log.notes.isNullOrBlank()) {
+            }
+            detail == null -> {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            }
+            else -> {
+                val workout = detail!!
+                val log = workout.workoutLog
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Summary card
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Notes", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                            Spacer(Modifier.height(4.dp))
-                            Text(log.notes, style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
-                }
-
-                // Exercises
-                Text("Exercises", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-
-                // Group supersets
-                val groups = mutableListOf<List<WorkoutDetailExercise>>()
-                var i = 0
-                while (i < workout.exercises.size) {
-                    val ex = workout.exercises[i]
-                    if (ex.supersetGroup != null) {
-                        val group = mutableListOf(ex)
-                        while (i + 1 < workout.exercises.size && workout.exercises[i + 1].supersetGroup == ex.supersetGroup) {
-                            i++
-                            group.add(workout.exercises[i])
-                        }
-                        groups.add(group)
-                    } else {
-                        groups.add(listOf(ex))
-                    }
-                    i++
-                }
-
-                groups.forEach { group ->
-                    if (group.size > 1) {
-                        // Superset
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(Modifier.width(4.dp))
-                                    Text("SUPERSET", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    when (log.workoutType) {
+                                        WorkoutType.STRENGTH -> Icons.Default.FitnessCenter
+                                        WorkoutType.CARDIO -> Icons.Default.DirectionsRun
+                                        WorkoutType.PELOTON -> Icons.Default.PedalBike
+                                        WorkoutType.BODYWEIGHT_QUICK -> Icons.Default.Bolt
+                                        WorkoutType.OTHER -> Icons.Default.SportsGymnastics
+                                    },
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text(dateFormat.format(Date(log.startTime)), style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        buildString {
+                                            append(timeFormat.format(Date(log.startTime)))
+                                            if (log.endTime != null) {
+                                                append(" - ${timeFormat.format(Date(log.endTime))}")
+                                            }
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
-                                Spacer(Modifier.height(8.dp))
-                                group.forEach { exercise ->
-                                    ExerciseDetailContent(exercise)
-                                    Spacer(Modifier.height(8.dp))
+                            }
+
+                            Spacer(Modifier.height(12.dp))
+
+                            // Stats row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly
+                            ) {
+                                // Duration
+                                if (log.endTime != null) {
+                                    val totalMin = (log.endTime - log.startTime) / 60000
+                                    StatItem(
+                                        label = "Duration",
+                                        value = if (totalMin >= 60) "${totalMin / 60}h ${totalMin % 60}m" else "${totalMin}m"
+                                    )
+                                }
+                                StatItem(label = "Exercises", value = "${workout.exercises.size}")
+                                StatItem(label = "Sets", value = "${workout.totalSets}")
+                                if (workout.totalVolume > 0) {
+                                    StatItem(
+                                        label = "Volume",
+                                        value = "${(workout.totalVolume / 1000).let { if (it >= 1) "%.1fk".format(it) else "%.0f".format(workout.totalVolume) }} lbs"
+                                    )
                                 }
                             }
                         }
-                    } else {
+                    }
+
+                    // Notes
+                    if (!log.notes.isNullOrBlank()) {
                         Card(modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                ExerciseDetailContent(group.first())
+                                Text("Notes", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                                Spacer(Modifier.height(4.dp))
+                                Text(log.notes, style = MaterialTheme.typography.bodyMedium)
                             }
                         }
                     }
-                }
 
-                Spacer(Modifier.height(16.dp))
+                    // Exercises
+                    Text("Exercises", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+
+                    if (workout.exercises.isEmpty()) {
+                        Card(modifier = Modifier.fillMaxWidth()) {
+                            Box(modifier = Modifier.padding(24.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                Text("No exercises logged", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+
+                    // Group supersets
+                    val groups = mutableListOf<List<WorkoutDetailExercise>>()
+                    var i = 0
+                    while (i < workout.exercises.size) {
+                        val ex = workout.exercises[i]
+                        if (ex.supersetGroup != null) {
+                            val group = mutableListOf(ex)
+                            while (i + 1 < workout.exercises.size && workout.exercises[i + 1].supersetGroup == ex.supersetGroup) {
+                                i++
+                                group.add(workout.exercises[i])
+                            }
+                            groups.add(group)
+                        } else {
+                            groups.add(listOf(ex))
+                        }
+                        i++
+                    }
+
+                    groups.forEach { group ->
+                        if (group.size > 1) {
+                            // Superset
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("SUPERSET", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                    }
+                                    Spacer(Modifier.height(8.dp))
+                                    group.forEach { exercise ->
+                                        ExerciseDetailContent(exercise)
+                                        Spacer(Modifier.height(8.dp))
+                                    }
+                                }
+                            }
+                        } else {
+                            Card(modifier = Modifier.fillMaxWidth()) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    ExerciseDetailContent(group.first())
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+                }
             }
         }
     }
@@ -186,6 +220,11 @@ fun WorkoutDetailScreen(
 private fun ExerciseDetailContent(exercise: WorkoutDetailExercise) {
     Text(exercise.exerciseName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
     Spacer(Modifier.height(4.dp))
+
+    if (exercise.sets.isEmpty()) {
+        Text("No sets logged", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        return
+    }
 
     // Header row
     Row(modifier = Modifier.fillMaxWidth()) {

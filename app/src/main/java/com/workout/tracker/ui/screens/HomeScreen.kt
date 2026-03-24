@@ -231,7 +231,8 @@ fun HomeScreen(
                     Text("Recent", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 }
                 items(recentWorkouts.take(3)) { workout ->
-                    val dateFormat = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
+                    val recentDateFormat = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
+                    val recentTimeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = { navController.navigate(Screen.WorkoutDetail.createRoute(workout.id)) }
@@ -247,11 +248,18 @@ fun HomeScreen(
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(Modifier.width(12.dp))
-                            Text(workout.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(workout.name, style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    recentTimeFormat.format(Date(workout.startTime)),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                             val durationMin = workout.endTime?.let { ((it - workout.startTime) / 60000).toInt() }
                             Text(
                                 buildString {
-                                    append(dateFormat.format(Date(workout.startTime)))
+                                    append(recentDateFormat.format(Date(workout.startTime)))
                                     if (durationMin != null && durationMin > 0) append(" \u2022 ${durationMin}m")
                                 },
                                 style = MaterialTheme.typography.labelSmall,

@@ -726,7 +726,7 @@ fun ScheduleWorkoutDialog(
                     }
                 }
 
-                Divider()
+                HorizontalDivider()
 
                 // Date selector
                 OutlinedButton(
