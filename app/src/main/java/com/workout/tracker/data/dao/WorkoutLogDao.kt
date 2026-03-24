@@ -53,6 +53,12 @@ data class MuscleGroupVolume(
     val totalVolume: Double
 )
 
+data class DashboardStats(
+    val totalWorkouts: Int,
+    val workoutsThisWeek: Int,
+    val totalVolume: Double
+)
+
 @Dao
 interface WorkoutLogDao {
     @Query("""
@@ -181,4 +187,13 @@ interface WorkoutLogDao {
 
     @Query("SELECT * FROM workout_logs ORDER BY startTime DESC")
     suspend fun getAllWorkoutLogsList(): List<WorkoutLog>
+
+    @Query("SELECT COUNT(*) FROM workout_logs WHERE endTime IS NOT NULL")
+    suspend fun getTotalCompletedWorkouts(): Int
+
+    @Query("""
+        SELECT COUNT(*) FROM workout_logs
+        WHERE endTime IS NOT NULL AND startTime >= :startDate
+    """)
+    suspend fun getCompletedWorkoutsSince(startDate: Long): Int
 }

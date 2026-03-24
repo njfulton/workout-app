@@ -7,11 +7,16 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.workout.tracker.WorkoutApp
 import com.workout.tracker.data.dao.ExerciseHistoryEntry
+import com.workout.tracker.data.dao.FeatureUsageCount
 import com.workout.tracker.data.entity.*
 import com.workout.tracker.data.repository.OverloadSuggestion
 import com.workout.tracker.data.repository.WorkoutRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.temporal.TemporalAdjusters
 
 data class ActiveExercise(
     val exerciseLogId: Long,
@@ -104,6 +109,69 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
     // Timer completion event
     private val _timerFinishedEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val timerFinishedEvent: SharedFlow<Unit> = _timerFinishedEvent
+
+    // Dashboard stats
+    data class DashboardState(
+        val totalWorkouts: Int = 0,
+        val workoutsThisWeek: Int = 0,
+        val currentStreak: Int = 0
+    )
+
+    private val _dashboardStats = MutableStateFlow(DashboardState())
+    val dashboardStats: StateFlow<DashboardState> = _dashboardStats
+
+    // Feature usage counts
+    val featureUsageCounts: StateFlow<List<FeatureUsageCount>> = repository.getFeatureUsageCounts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    init {
+        loadDashboardStats()
+    }
+
+    fun loadDashboardStats() {
+        viewModelScope.launch {
+            val total = repository.getTotalCompletedWorkouts()
+            val weekStart = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val thisWeek = repository.getCompletedWorkoutsSince(weekStart)
+            val streak = calculateStreak()
+            _dashboardStats.value = DashboardState(
+                totalWorkouts = total,
+                workoutsThisWeek = thisWeek,
+                currentStreak = streak
+            )
+        }
+    }
+
+    private suspend fun calculateStreak(): Int {
+        // Count consecutive scheduled workouts not skipped (most recent first)
+        // We look at scheduled workouts up to today that are completed, counting backwards
+        // until we hit a skip or miss
+        val todayEnd = LocalDate.now().plusDays(1)
+            .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val farPast = LocalDate.now().minusYears(1)
+            .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val scheduled = repository.getScheduleBetweenOnce(farPast, todayEnd)
+        // Filter out rest days, sort most recent first
+        val workouts = scheduled
+            .filter { it.label?.lowercase()?.contains("rest") != true }
+            .sortedByDescending { it.scheduledDate }
+        var streak = 0
+        for (sw in workouts) {
+            if (sw.isCompleted) {
+                streak++
+            } else {
+                break // Hit a skip or miss, streak ends
+            }
+        }
+        return streak
+    }
+
+    fun logFeatureUsage(featureName: String) {
+        viewModelScope.launch {
+            repository.logFeatureUsage(featureName)
+        }
+    }
 
     fun startWorkout(name: String, type: WorkoutType, templateId: Long? = null, scheduledWorkoutId: Long? = null) {
         viewModelScope.launch {
@@ -253,6 +321,7 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
                 repository.setScheduledWorkoutCompleted(id, false)
             }
             _activeWorkout.value = ActiveWorkoutState()
+            loadDashboardStats()
         }
     }
 
@@ -266,6 +335,7 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
                 repository.setScheduledWorkoutCompleted(id, true)
             }
             _activeWorkout.value = ActiveWorkoutState()
+            loadDashboardStats()
         }
     }
 

@@ -11,7 +11,8 @@ class WorkoutRepository(
     private val workoutLogDao: WorkoutLogDao,
     private val scheduleDao: ScheduleDao,
     private val savedRoutineDao: SavedRoutineDao? = null,
-    private val pushupLogDao: PushupLogDao? = null
+    private val pushupLogDao: PushupLogDao? = null,
+    private val featureUsageDao: FeatureUsageDao? = null
 ) {
     // Exercises
     val allExercises: Flow<List<Exercise>> = exerciseDao.getAllExercises()
@@ -64,6 +65,7 @@ class WorkoutRepository(
     // Schedule
     fun getUpcomingSchedule(fromDate: Long): Flow<List<ScheduledWorkoutWithTemplate>> = scheduleDao.getUpcomingSchedule(fromDate)
     fun getScheduleBetween(start: Long, end: Long): Flow<List<ScheduledWorkoutWithTemplate>> = scheduleDao.getScheduleBetween(start, end)
+    suspend fun getScheduleBetweenOnce(start: Long, end: Long): List<ScheduledWorkoutWithTemplate> = scheduleDao.getScheduleBetweenOnce(start, end)
     suspend fun insertScheduledWorkout(sw: ScheduledWorkout): Long = scheduleDao.insert(sw)
     suspend fun updateScheduledWorkout(sw: ScheduledWorkout) = scheduleDao.update(sw)
     suspend fun setScheduledWorkoutCompleted(id: Long, isCompleted: Boolean) = scheduleDao.setCompleted(id, isCompleted)
@@ -96,6 +98,17 @@ class WorkoutRepository(
     suspend fun insertPushupLog(log: PushupLog): Long = pushupLogDao?.insert(log) ?: 0
     suspend fun deletePushupLog(log: PushupLog) = pushupLogDao?.delete(log)
     suspend fun getAllPushupLogsList(): List<PushupLog> = pushupLogDao?.getAllPushupLogsList() ?: emptyList()
+
+    // Dashboard stats
+    suspend fun getTotalCompletedWorkouts(): Int = workoutLogDao.getTotalCompletedWorkouts()
+    suspend fun getCompletedWorkoutsSince(startDate: Long): Int = workoutLogDao.getCompletedWorkoutsSince(startDate)
+
+    // Feature usage logging
+    suspend fun logFeatureUsage(featureName: String) {
+        featureUsageDao?.insert(FeatureUsageLog(featureName = featureName))
+    }
+    fun getFeatureUsageCounts(): Flow<List<FeatureUsageCount>> =
+        featureUsageDao?.getUsageCounts() ?: kotlinx.coroutines.flow.flowOf(emptyList())
 
     // Progressive Overload Suggestion
     suspend fun getProgressiveOverloadSuggestion(exerciseId: Long): OverloadSuggestion? {

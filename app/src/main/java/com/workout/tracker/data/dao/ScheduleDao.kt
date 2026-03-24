@@ -37,6 +37,16 @@ interface ScheduleDao {
     """)
     fun getScheduleBetween(startDate: Long, endDate: Long): Flow<List<ScheduledWorkoutWithTemplate>>
 
+    @Query("""
+        SELECT s.id, s.templateId, t.name as templateName, s.scheduledDate,
+               s.isCompleted, s.completedWorkoutLogId, s.label, s.isSkipped
+        FROM scheduled_workouts s
+        LEFT JOIN workout_templates t ON s.templateId = t.id
+        WHERE s.scheduledDate >= :startDate AND s.scheduledDate <= :endDate
+        ORDER BY s.scheduledDate ASC
+    """)
+    suspend fun getScheduleBetweenOnce(startDate: Long, endDate: Long): List<ScheduledWorkoutWithTemplate>
+
     @Query("SELECT * FROM scheduled_workouts ORDER BY scheduledDate ASC")
     suspend fun getAllScheduledWorkoutsList(): List<ScheduledWorkout>
 
