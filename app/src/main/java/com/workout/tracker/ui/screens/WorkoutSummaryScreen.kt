@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -15,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.workout.tracker.data.entity.PRType
 import com.workout.tracker.ui.viewmodel.WorkoutViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -87,6 +89,59 @@ fun WorkoutSummaryScreen(
                 if (data.totalVolume > 0) {
                     val volStr = if (data.totalVolume >= 1000) "%.1fk".format(data.totalVolume / 1000) else "%.0f".format(data.totalVolume)
                     SummaryStatItem(value = "$volStr lbs", label = "Volume")
+                }
+            }
+
+            // Personal Records section
+            if (data.personalRecords.isNotEmpty()) {
+                Spacer(Modifier.height(24.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.EmojiEvents,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "${data.personalRecords.size} Personal Record${if (data.personalRecords.size > 1) "s" else ""}!",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        data.personalRecords.forEach { pr ->
+                            val desc = when (pr.type) {
+                                PRType.MAX_WEIGHT -> "Max Weight: ${pr.weightLbs?.toInt()} lbs"
+                                PRType.MAX_VOLUME -> "Best Set Volume: ${pr.value.toInt()} lbs"
+                                PRType.MAX_ESTIMATED_1RM -> "Est. 1RM: ${pr.value.toInt()} lbs"
+                                PRType.MAX_REPS -> "Max Reps: ${pr.reps}"
+                            }
+                            Row(
+                                modifier = Modifier.padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.TrendingUp,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    desc,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                            }
+                        }
+                    }
                 }
             }
 

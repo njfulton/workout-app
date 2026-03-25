@@ -2,15 +2,19 @@ package com.workout.tracker.ui.viewmodel
 
 import android.content.Context
 import android.media.RingtoneManager
+import android.preference.PreferenceManager
 import androidx.lifecycle.*
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.workout.tracker.WorkoutApp
 import com.workout.tracker.data.dao.ExerciseHistoryEntry
 import com.workout.tracker.data.dao.FeatureUsageCount
+import com.workout.tracker.data.dao.PersonalRecordWithExercise
 import com.workout.tracker.data.entity.*
 import com.workout.tracker.data.repository.OverloadSuggestion
 import com.workout.tracker.data.repository.WorkoutRepository
+import com.workout.tracker.health.HealthConnectManager
+import com.workout.tracker.util.OneRepMaxCalculator
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -112,6 +116,14 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
     // Timer completion event
     private val _timerFinishedEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val timerFinishedEvent: SharedFlow<Unit> = _timerFinishedEvent
+
+    // PR detection events
+    private val _newPRs = MutableSharedFlow<List<PersonalRecord>>(extraBufferCapacity = 1)
+    val newPRs: SharedFlow<List<PersonalRecord>> = _newPRs
+
+    // Session PRs (accumulated during workout)
+    private val _sessionPRs = MutableStateFlow<List<PersonalRecord>>(emptyList())
+    val sessionPRs: StateFlow<List<PersonalRecord>> = _sessionPRs
 
     // Dashboard stats
     data class DashboardState(
@@ -248,6 +260,24 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
                 })
             }
 
+            // Check for PRs (only for non-warmup sets)
+            if (!isWarmup) {
+                val state = _activeWorkout.value
+                val exercise = state.exercises.find { it.exerciseLogId == exerciseLogId }
+                if (exercise != null) {
+                    val prs = repository.checkAndRecordPRs(
+                        exerciseId = exercise.exercise.id,
+                        reps = reps,
+                        weightLbs = weight,
+                        workoutLogId = state.workoutLog?.id
+                    )
+                    if (prs.isNotEmpty()) {
+                        _newPRs.tryEmit(prs)
+                        _sessionPRs.value = _sessionPRs.value + prs
+                    }
+                }
+            }
+
             // Check if current group is now completed and auto-advance
             val state = _activeWorkout.value
             val currentGroup = state.currentGroup
@@ -373,10 +403,12 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
                 totalSets = totalSets,
                 totalReps = totalReps,
                 totalVolume = totalVolume,
-                exercises = summaryExercises
+                exercises = summaryExercises,
+                personalRecords = _sessionPRs.value
             )
 
             _activeWorkout.value = ActiveWorkoutState()
+            _sessionPRs.value = emptyList()
             stopRestTimer()
             loadDashboardStats()
         }
@@ -427,6 +459,21 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
         _restTimerSeconds.value = 0
     }
 
+    fun syncWorkoutToHealthConnect(context: Context, workoutName: String, workoutType: com.workout.tracker.data.entity.WorkoutType, startTime: Long, endTime: Long) {
+        viewModelScope.launch {
+            try {
+                val prefs = context.getSharedPreferences("workout_prefs", Context.MODE_PRIVATE)
+                if (!prefs.getBoolean("health_connect_auto_sync", true)) return@launch
+                if (!HealthConnectManager.isAvailable(context)) return@launch
+
+                val manager = HealthConnectManager(context)
+                if (manager.hasPermissions()) {
+                    manager.writeWorkoutSession(workoutName, workoutType, startTime, endTime)
+                }
+            } catch (_: Exception) { }
+        }
+    }
+
     fun playTimerSound(context: Context) {
         try {
             val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
@@ -442,16 +489,31 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
     private val _progressExerciseName = MutableStateFlow("")
     val progressExerciseName: StateFlow<String> = _progressExerciseName
 
+    private val _exerciseRecords = MutableStateFlow<List<PersonalRecord>>(emptyList())
+    val exerciseRecords: StateFlow<List<PersonalRecord>> = _exerciseRecords
+
+    private val _estimated1RM = MutableStateFlow<Double?>(null)
+    val estimated1RM: StateFlow<Double?> = _estimated1RM
+
     fun loadExerciseProgress(exerciseId: Long, exerciseName: String) {
         _progressExerciseName.value = exerciseName
         viewModelScope.launch {
             _exerciseProgress.value = repository.getExerciseProgressData(exerciseId)
+
+            // Load exercise history for 1RM calculation
+            val history = repository.getExerciseHistory(exerciseId, 100)
+            val best1RM = history
+                .filter { it.weightLbs != null && it.weightLbs > 0 && it.reps != null && it.reps in 1..12 }
+                .maxOfOrNull { OneRepMaxCalculator.estimate(it.weightLbs!!, it.reps!!) }
+            _estimated1RM.value = best1RM
         }
     }
 
     fun clearExerciseProgress() {
         _exerciseProgress.value = emptyList()
         _progressExerciseName.value = ""
+        _estimated1RM.value = null
+        _exerciseRecords.value = emptyList()
     }
 
     // Workout summary (shown after finishing a workout)
@@ -462,7 +524,8 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
         val totalSets: Int,
         val totalReps: Int,
         val totalVolume: Double,
-        val exercises: List<SummaryExercise>
+        val exercises: List<SummaryExercise>,
+        val personalRecords: List<PersonalRecord> = emptyList()
     )
 
     data class SummaryExercise(

@@ -73,6 +73,14 @@ fun UtilitiesScreen(
         UtilityItem(Icons.Default.Bolt, "Quick Log", "Log a single exercise fast", "quick_log") {
             workoutViewModel.logFeatureUsage("quick_log")
             navController.navigate(Screen.QuickLog.route)
+        },
+        UtilityItem(Icons.Default.Calculate, "Plate Calculator", "Calculate plate loading", "plate_calculator") {
+            workoutViewModel.logFeatureUsage("plate_calculator")
+            navController.navigate(Screen.PlateCalculator.route)
+        },
+        UtilityItem(Icons.Default.HealthAndSafety, "Health Connect", "Sync with Google Fit", "health_connect") {
+            workoutViewModel.logFeatureUsage("health_connect")
+            navController.navigate(Screen.HealthConnect.route)
         }
     )
 

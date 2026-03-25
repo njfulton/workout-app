@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.workout.tracker.data.entity.PRType
+import com.workout.tracker.data.entity.PersonalRecord
 import com.workout.tracker.data.entity.SetLog
 import com.workout.tracker.ui.navigation.Screen
 import com.workout.tracker.ui.viewmodel.ActiveExercise
@@ -47,6 +49,7 @@ fun ActiveWorkoutScreen(
     var showExercisePicker by remember { mutableStateOf(false) }
     var showFinishConfirm by remember { mutableStateOf(false) }
     var showExerciseList by remember { mutableStateOf(false) }
+    var showPRCelebration by remember { mutableStateOf<List<PersonalRecord>?>(null) }
 
     val context = LocalContext.current
     val groups = activeWorkout.groups
@@ -66,6 +69,15 @@ fun ActiveWorkoutScreen(
     LaunchedEffect(Unit) {
         workoutViewModel.timerFinishedEvent.collect {
             workoutViewModel.playTimerSound(context)
+        }
+    }
+
+    // PR celebration
+    LaunchedEffect(Unit) {
+        workoutViewModel.newPRs.collect { prs ->
+            if (prs.isNotEmpty()) {
+                showPRCelebration = prs
+            }
         }
     }
 
@@ -286,6 +298,14 @@ fun ActiveWorkoutScreen(
             text = { Text("Save this workout to your history, or discard it?") },
             confirmButton = {
                 TextButton(onClick = {
+                    // Sync to Health Connect before finishing
+                    val workoutLog = activeWorkout.workoutLog
+                    if (workoutLog != null) {
+                        workoutViewModel.syncWorkoutToHealthConnect(
+                            context, workoutLog.name, workoutLog.workoutType,
+                            workoutLog.startTime, System.currentTimeMillis()
+                        )
+                    }
                     workoutViewModel.finishWorkout()
                     showFinishConfirm = false
                     navController.navigate(Screen.WorkoutSummary.route) {
@@ -301,6 +321,50 @@ fun ActiveWorkoutScreen(
                         showFinishConfirm = false
                         navController.popBackStack(route = "home", inclusive = false)
                     }) { Text("Discard", color = MaterialTheme.colorScheme.error) }
+                }
+            }
+        )
+    }
+
+    // PR Celebration Dialog
+    showPRCelebration?.let { prs ->
+        AlertDialog(
+            onDismissRequest = { showPRCelebration = null },
+            icon = {
+                Icon(
+                    Icons.Default.EmojiEvents,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(48.dp)
+                )
+            },
+            title = {
+                Text(
+                    "New Personal Record!",
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            },
+            text = {
+                Column {
+                    prs.forEach { pr ->
+                        val description = when (pr.type) {
+                            PRType.MAX_WEIGHT -> "Max Weight: ${pr.weightLbs?.toInt()} lbs"
+                            PRType.MAX_VOLUME -> "Best Set Volume: ${pr.value.toInt()} lbs"
+                            PRType.MAX_ESTIMATED_1RM -> "Est. 1RM: ${pr.value.toInt()} lbs"
+                            PRType.MAX_REPS -> "Max Reps: ${pr.reps}"
+                        }
+                        Text(
+                            description,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.padding(vertical = 2.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showPRCelebration = null }) {
+                    Text("Nice!")
                 }
             }
         )

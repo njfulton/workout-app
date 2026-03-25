@@ -2,6 +2,7 @@ package com.workout.tracker.data.repository
 
 import com.workout.tracker.data.dao.*
 import com.workout.tracker.data.entity.*
+import com.workout.tracker.util.OneRepMaxCalculator
 import kotlinx.coroutines.flow.Flow
 
 
@@ -12,7 +13,8 @@ class WorkoutRepository(
     private val scheduleDao: ScheduleDao,
     private val savedRoutineDao: SavedRoutineDao? = null,
     private val pushupLogDao: PushupLogDao? = null,
-    private val featureUsageDao: FeatureUsageDao? = null
+    private val featureUsageDao: FeatureUsageDao? = null,
+    private val personalRecordDao: PersonalRecordDao? = null
 ) {
     // Exercises
     val allExercises: Flow<List<Exercise>> = exerciseDao.getAllExercises()
@@ -109,6 +111,102 @@ class WorkoutRepository(
     }
     fun getFeatureUsageCounts(): Flow<List<FeatureUsageCount>> =
         featureUsageDao?.getUsageCounts() ?: kotlinx.coroutines.flow.flowOf(emptyList())
+
+    // Personal Records
+    fun getRecordsForExercise(exerciseId: Long) = personalRecordDao?.getRecordsForExercise(exerciseId) ?: kotlinx.coroutines.flow.flowOf(emptyList())
+    fun getRecentRecords(limit: Int = 50) = personalRecordDao?.getRecentRecords(limit) ?: kotlinx.coroutines.flow.flowOf(emptyList())
+    suspend fun getRecordsForWorkout(workoutLogId: Long) = personalRecordDao?.getRecordsForWorkout(workoutLogId) ?: emptyList()
+
+    /**
+     * Checks if a newly logged set is a personal record.
+     * Returns list of new PRs detected.
+     */
+    suspend fun checkAndRecordPRs(
+        exerciseId: Long,
+        reps: Int?,
+        weightLbs: Double?,
+        workoutLogId: Long?
+    ): List<PersonalRecord> {
+        if (personalRecordDao == null) return emptyList()
+        if (reps == null || reps <= 0) return emptyList()
+
+        val newPRs = mutableListOf<PersonalRecord>()
+        val now = System.currentTimeMillis()
+
+        // Check MAX_WEIGHT PR
+        if (weightLbs != null && weightLbs > 0) {
+            val currentBest = personalRecordDao.getBestRecord(exerciseId, PRType.MAX_WEIGHT)
+            if (currentBest == null || weightLbs > currentBest.value) {
+                val pr = PersonalRecord(
+                    exerciseId = exerciseId,
+                    type = PRType.MAX_WEIGHT,
+                    value = weightLbs,
+                    reps = reps,
+                    weightLbs = weightLbs,
+                    achievedAt = now,
+                    workoutLogId = workoutLogId
+                )
+                personalRecordDao.insert(pr)
+                newPRs.add(pr)
+            }
+        }
+
+        // Check MAX_VOLUME PR (single set: weight x reps)
+        if (weightLbs != null && weightLbs > 0) {
+            val setVolume = weightLbs * reps
+            val currentBest = personalRecordDao.getBestRecord(exerciseId, PRType.MAX_VOLUME)
+            if (currentBest == null || setVolume > currentBest.value) {
+                val pr = PersonalRecord(
+                    exerciseId = exerciseId,
+                    type = PRType.MAX_VOLUME,
+                    value = setVolume,
+                    reps = reps,
+                    weightLbs = weightLbs,
+                    achievedAt = now,
+                    workoutLogId = workoutLogId
+                )
+                personalRecordDao.insert(pr)
+                newPRs.add(pr)
+            }
+        }
+
+        // Check MAX_ESTIMATED_1RM PR
+        if (weightLbs != null && weightLbs > 0 && reps in 1..12) {
+            val estimated1RM = OneRepMaxCalculator.estimate(weightLbs, reps)
+            val currentBest = personalRecordDao.getBestRecord(exerciseId, PRType.MAX_ESTIMATED_1RM)
+            if (currentBest == null || estimated1RM > currentBest.value) {
+                val pr = PersonalRecord(
+                    exerciseId = exerciseId,
+                    type = PRType.MAX_ESTIMATED_1RM,
+                    value = estimated1RM,
+                    reps = reps,
+                    weightLbs = weightLbs,
+                    achievedAt = now,
+                    workoutLogId = workoutLogId
+                )
+                personalRecordDao.insert(pr)
+                newPRs.add(pr)
+            }
+        }
+
+        // Check MAX_REPS PR (bodyweight or at any weight)
+        val currentBestReps = personalRecordDao.getBestRecord(exerciseId, PRType.MAX_REPS)
+        if (currentBestReps == null || reps > currentBestReps.value) {
+            val pr = PersonalRecord(
+                exerciseId = exerciseId,
+                type = PRType.MAX_REPS,
+                value = reps.toDouble(),
+                reps = reps,
+                weightLbs = weightLbs,
+                achievedAt = now,
+                workoutLogId = workoutLogId
+            )
+            personalRecordDao.insert(pr)
+            newPRs.add(pr)
+        }
+
+        return newPRs
+    }
 
     // Progressive Overload Suggestion
     suspend fun getProgressiveOverloadSuggestion(exerciseId: Long): OverloadSuggestion? {

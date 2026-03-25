@@ -107,6 +107,53 @@ fun ExerciseProgressScreen(
                     }
                 }
 
+                // Estimated 1RM card
+                item {
+                    val est1RM by workoutViewModel.estimated1RM.collectAsStateWithLifecycle()
+                    est1RM?.let { oneRM ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    "Estimated 1 Rep Max",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "${oneRM.toInt()} lbs",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    "Based on your best working sets (Epley/Brzycki avg)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                // Rep max estimates
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    listOf(3, 5, 8, 10).forEach { reps ->
+                                        val weight = com.workout.tracker.util.OneRepMaxCalculator.weightForReps(oneRM, reps)
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text("${weight.toInt()}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                                            Text("${reps}RM", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Weight chart
                 item {
                     Text("Weight Over Time", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)

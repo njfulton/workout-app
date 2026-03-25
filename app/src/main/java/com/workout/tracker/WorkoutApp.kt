@@ -21,7 +21,8 @@ class WorkoutApp : Application() {
             database.scheduleDao(),
             database.savedRoutineDao(),
             database.pushupLogDao(),
-            database.featureUsageDao()
+            database.featureUsageDao(),
+            database.personalRecordDao()
         )
     }
 
