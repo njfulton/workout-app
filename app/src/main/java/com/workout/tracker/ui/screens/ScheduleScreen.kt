@@ -612,7 +612,7 @@ fun MarkCompletedDialog(
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { millis ->
-                        selectedDate = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+                        selectedDate = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
                     }
                     showDatePicker = false
                 }) { Text("OK") }
@@ -631,8 +631,14 @@ fun MoveDateDialog(
     onDismiss: () -> Unit,
     onMove: (LocalDate) -> Unit
 ) {
+    // Convert local-timezone millis to UTC midnight for Material3 DatePicker
+    val initialUtcMillis = remember(currentDateMillis) {
+        Instant.ofEpochMilli(currentDateMillis)
+            .atZone(ZoneId.systemDefault()).toLocalDate()
+            .atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+    }
     val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = currentDateMillis
+        initialSelectedDateMillis = initialUtcMillis
     )
 
     DatePickerDialog(
@@ -640,7 +646,7 @@ fun MoveDateDialog(
         confirmButton = {
             TextButton(onClick = {
                 datePickerState.selectedDateMillis?.let { millis ->
-                    val date = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+                    val date = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
                     onMove(date)
                 }
             }) { Text("Move") }
@@ -763,7 +769,7 @@ fun ScheduleWorkoutDialog(
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { millis ->
-                        selectedDate = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+                        selectedDate = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
                     }
                     showDatePicker = false
                 }) { Text("OK") }
