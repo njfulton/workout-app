@@ -218,7 +218,13 @@ fun ActiveWorkoutScreen(
                             },
                             onUpdateSet = { workoutViewModel.updateSet(it) },
                             onStartTimer = { workoutViewModel.startRestTimer(it) },
-                            onMarkDone = { workoutViewModel.markExerciseDone(it) }
+                            onMarkDone = { workoutViewModel.markExerciseDone(it) },
+                            defaultRestSeconds = currentGroup.exercises.first().restSeconds,
+                            onRestSecondsChanged = { seconds ->
+                                currentGroup.exercises.forEach { ex ->
+                                    workoutViewModel.updateExerciseRestSeconds(ex.exerciseLogId, seconds)
+                                }
+                            }
                         )
                     } else {
                         FocusedExerciseCard(
@@ -403,7 +409,7 @@ fun FocusedExerciseCard(
     onUpdateSet: (SetLog) -> Unit,
     onStartTimer: (Int) -> Unit,
     onMarkDone: () -> Unit,
-    defaultRestSeconds: Int = 90,
+    defaultRestSeconds: Int = 120,
     onRestSecondsChanged: ((Int) -> Unit)? = null
 ) {
     val nextSetNumber = activeExercise.sets.size + 1
@@ -624,10 +630,12 @@ fun FocusedSupersetCard(
     onLogSet: (Long, Int, Int, Double?, Boolean) -> Unit,
     onUpdateSet: (SetLog) -> Unit,
     onStartTimer: (Int) -> Unit,
-    onMarkDone: (Long) -> Unit
+    onMarkDone: (Long) -> Unit,
+    defaultRestSeconds: Int = 120,
+    onRestSecondsChanged: ((Int) -> Unit)? = null
 ) {
     var activeTab by remember { mutableStateOf(0) }
-    val restSeconds = exercises.firstOrNull()?.restSeconds ?: 90
+    var currentRestSeconds by remember { mutableStateOf(defaultRestSeconds) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -722,7 +730,30 @@ fun FocusedSupersetCard(
                     @Suppress("DEPRECATION") Divider()
                 }
 
-                Spacer(Modifier.height(8.dp))
+                // Rest time adjuster
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                ) {
+                    Icon(Icons.Default.Timer, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Rest: ", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    IconButton(onClick = {
+                        currentRestSeconds = (currentRestSeconds - 15).coerceAtLeast(0)
+                        onRestSecondsChanged?.invoke(currentRestSeconds)
+                    }, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Remove, contentDescription = "Decrease rest", modifier = Modifier.size(16.dp))
+                    }
+                    Text("${currentRestSeconds}s", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    IconButton(onClick = {
+                        currentRestSeconds = (currentRestSeconds + 15).coerceAtMost(300)
+                        onRestSecondsChanged?.invoke(currentRestSeconds)
+                    }, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Add, contentDescription = "Increase rest", modifier = Modifier.size(16.dp))
+                    }
+                }
+
+                Spacer(Modifier.height(4.dp))
 
                 // Set input
                 Text("Set $nextSetNumber", style = MaterialTheme.typography.labelMedium)
@@ -761,7 +792,7 @@ fun FocusedSupersetCard(
                             } else {
                                 // All exercises in superset have logged a set this round
                                 activeTab = 0
-                                onStartTimer(restSeconds)
+                                onStartTimer(currentRestSeconds)
                             }
                         },
                         enabled = repsText.toIntOrNull() != null

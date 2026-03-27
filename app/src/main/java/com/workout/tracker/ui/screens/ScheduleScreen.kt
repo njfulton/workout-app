@@ -467,7 +467,7 @@ fun DayDetailItem(
             if (!isDone && !isRestDay) {
                 Spacer(Modifier.height(8.dp))
 
-                if (item.templateId != null && !isPast) {
+                if (item.templateId != null) {
                     Button(
                         onClick = {
                             workoutViewModel.startWorkout(

@@ -28,7 +28,7 @@ data class ActiveExercise(
     val exercise: Exercise,
     val sets: List<SetLog> = emptyList(),
     val overloadSuggestion: OverloadSuggestion? = null,
-    val restSeconds: Int = 90,
+    val restSeconds: Int = 120,
     val history: List<ExerciseHistoryEntry> = emptyList(),
     val supersetGroup: Int? = null,
     val targetSets: Int? = null,
