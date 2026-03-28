@@ -615,7 +615,7 @@ fun MarkCompletedDialog(
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { millis ->
-                        selectedDate = Instant.ofEpochMilli(millis + 43200000L).atZone(ZoneOffset.UTC).toLocalDate()
+                        selectedDate = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
                     }
                     showDatePicker = false
                 }) { Text("OK") }
@@ -638,9 +638,9 @@ fun MoveDateDialog(
         initialSelectedDateMillis = currentDateMillis
     )
 
-    // Compute the date that will be used when user taps Move
+    // DatePicker returns UTC midnight millis - must convert with UTC, not local timezone
     val selectedDate = datePickerState.selectedDateMillis?.let { millis ->
-        Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+        Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
     }
 
     DatePickerDialog(
@@ -770,7 +770,7 @@ fun ScheduleWorkoutDialog(
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { millis ->
-                        selectedDate = Instant.ofEpochMilli(millis + 43200000L).atZone(ZoneOffset.UTC).toLocalDate()
+                        selectedDate = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
                     }
                     showDatePicker = false
                 }) { Text("OK") }
