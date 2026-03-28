@@ -650,10 +650,10 @@ fun MoveDateDialog(
                 if (selectedDate != null) {
                     onMove(selectedDate)
                 }
-            }) { Text(if (selectedDate != null) "Move to ${selectedDate.monthValue}/${selectedDate.dayOfMonth}" else "Move") }
+            }) { Text(if (selectedDate != null) "Move to ${selectedDate.monthValue}/${selectedDate.dayOfMonth}" else "No date") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text("Go Back") }
         }
     ) {
         DatePicker(state = datePickerState)
