@@ -615,7 +615,7 @@ fun MarkCompletedDialog(
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { millis ->
-                        selectedDate = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
+                        selectedDate = Instant.ofEpochMilli(millis + 43200000L).atZone(ZoneOffset.UTC).toLocalDate()
                     }
                     showDatePicker = false
                 }) { Text("OK") }
@@ -634,14 +634,15 @@ fun MoveDateDialog(
     onDismiss: () -> Unit,
     onMove: (LocalDate) -> Unit
 ) {
-    // Convert local-timezone millis to UTC midnight for Material3 DatePicker
-    val initialUtcMillis = remember(currentDateMillis) {
+    // Convert to UTC noon so the DatePicker shows the correct initial date
+    // regardless of whether the library interprets millis as UTC or local
+    val initialPickerMillis = remember(currentDateMillis) {
         Instant.ofEpochMilli(currentDateMillis)
             .atZone(ZoneId.systemDefault()).toLocalDate()
-            .atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+            .atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli() + 43200000L // +12h = noon UTC
     }
     val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = initialUtcMillis
+        initialSelectedDateMillis = initialPickerMillis
     )
 
     DatePickerDialog(
@@ -649,7 +650,8 @@ fun MoveDateDialog(
         confirmButton = {
             TextButton(onClick = {
                 datePickerState.selectedDateMillis?.let { millis ->
-                    val date = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
+                    // Add 12h before extracting date to handle both UTC and local midnight
+                    val date = Instant.ofEpochMilli(millis + 43200000L).atZone(ZoneOffset.UTC).toLocalDate()
                     onMove(date)
                 }
             }) { Text("Move") }
@@ -772,7 +774,7 @@ fun ScheduleWorkoutDialog(
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { millis ->
-                        selectedDate = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
+                        selectedDate = Instant.ofEpochMilli(millis + 43200000L).atZone(ZoneOffset.UTC).toLocalDate()
                     }
                     showDatePicker = false
                 }) { Text("OK") }
