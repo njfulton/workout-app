@@ -634,27 +634,23 @@ fun MoveDateDialog(
     onDismiss: () -> Unit,
     onMove: (LocalDate) -> Unit
 ) {
-    // Convert to UTC noon so the DatePicker shows the correct initial date
-    // regardless of whether the library interprets millis as UTC or local
-    val initialPickerMillis = remember(currentDateMillis) {
-        Instant.ofEpochMilli(currentDateMillis)
-            .atZone(ZoneId.systemDefault()).toLocalDate()
-            .atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli() + 43200000L // +12h = noon UTC
-    }
     val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = initialPickerMillis
+        initialSelectedDateMillis = currentDateMillis
     )
+
+    // Compute the date that will be used when user taps Move
+    val selectedDate = datePickerState.selectedDateMillis?.let { millis ->
+        Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+    }
 
     DatePickerDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             TextButton(onClick = {
-                datePickerState.selectedDateMillis?.let { millis ->
-                    // Add 12h before extracting date to handle both UTC and local midnight
-                    val date = Instant.ofEpochMilli(millis + 43200000L).atZone(ZoneOffset.UTC).toLocalDate()
-                    onMove(date)
+                if (selectedDate != null) {
+                    onMove(selectedDate)
                 }
-            }) { Text("Move") }
+            }) { Text(if (selectedDate != null) "Move to ${selectedDate.monthValue}/${selectedDate.dayOfMonth}" else "Move") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }
