@@ -634,8 +634,14 @@ fun MoveDateDialog(
     onDismiss: () -> Unit,
     onMove: (LocalDate) -> Unit
 ) {
+    // Convert stored local-midnight millis to UTC midnight for the DatePicker
+    val initialUtcMillis = remember(currentDateMillis) {
+        Instant.ofEpochMilli(currentDateMillis)
+            .atZone(ZoneId.systemDefault()).toLocalDate()
+            .atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+    }
     val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = currentDateMillis
+        initialSelectedDateMillis = initialUtcMillis
     )
 
     // DatePicker returns UTC midnight millis - must convert with UTC, not local timezone
@@ -650,10 +656,10 @@ fun MoveDateDialog(
                 if (selectedDate != null) {
                     onMove(selectedDate)
                 }
-            }) { Text(if (selectedDate != null) "Move to ${selectedDate.monthValue}/${selectedDate.dayOfMonth}" else "No date") }
+            }) { Text("Move") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Go Back") }
+            TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     ) {
         DatePicker(state = datePickerState)
