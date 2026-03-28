@@ -46,8 +46,15 @@ fun ScheduleScreen(
     val templates by templateViewModel.templates.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
     var showClearConfirm by remember { mutableStateOf(false) }
-    var selectedDayItems by remember { mutableStateOf<List<ScheduledWorkoutWithTemplate>?>(null) }
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
+
+    // Derive dialog items from live schedule so actions (unskip, mark done, etc.) update immediately
+    val selectedDayItems = remember(selectedDate, monthSchedule) {
+        val date = selectedDate ?: return@remember emptyList()
+        monthSchedule.filter { sw ->
+            Instant.ofEpochMilli(sw.scheduledDate).atZone(ZoneId.systemDefault()).toLocalDate() == date
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -125,26 +132,22 @@ fun ScheduleScreen(
             CalendarGrid(
                 yearMonth = currentMonth,
                 schedule = monthSchedule,
-                onDayClick = { date, items ->
+                onDayClick = { date, _ ->
                     selectedDate = date
-                    selectedDayItems = items
                 }
             )
         }
     }
 
     // Day detail dialog
-    if (selectedDayItems != null && selectedDate != null) {
+    if (selectedDate != null) {
         DayDetailDialog(
             date = selectedDate!!,
-            items = selectedDayItems!!,
+            items = selectedDayItems,
             scheduleViewModel = scheduleViewModel,
             workoutViewModel = workoutViewModel,
             navController = navController,
-            onDismiss = {
-                selectedDayItems = null
-                selectedDate = null
-            }
+            onDismiss = { selectedDate = null }
         )
     }
 
