@@ -9,3 +9,10 @@ TASKS_DB_ID = "1adddaaf-b7d7-81a7-8f34-000baeb99389"
 
 # Secrets (set via `wrangler secret put`):
 # - NOTION_API_KEY
+# - DASHBOARD_TOKEN
+
+[[d1_databases]]
+binding = "DB"
+database_name = "email-capture-logs"
+database_id = "REPLACE_AFTER_CREATION" # Run: npx wrangler d1 create email-capture-logs
+migrations_dir = "migrations"
