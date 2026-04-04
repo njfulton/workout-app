@@ -54,10 +54,26 @@ function preprocessHtml(html: string): string {
 export function convertHtmlToMarkdown(html: string): string {
   const cleaned = preprocessHtml(html);
 
-  // Provide a DOM environment for Turndown via linkedom
-  const { document } = parseHTML("<!DOCTYPE html><html><body></body></html>");
+  // Provide a full DOM environment for Turndown via linkedom.
+  // Turndown calls document.implementation.createHTMLDocument(), so we need
+  // to set up globalThis.document with a linkedom document that supports it.
+  const { document, HTMLElement } = parseHTML(
+    "<!DOCTYPE html><html><body></body></html>"
+  );
+
+  // Patch createHTMLDocument if linkedom doesn't provide it
+  if (document.implementation && !document.implementation.createHTMLDocument) {
+    (document.implementation as any).createHTMLDocument = (title?: string) => {
+      const { document: newDoc } = parseHTML(
+        `<!DOCTYPE html><html><head><title>${title ?? ""}</title></head><body></body></html>`
+      );
+      return newDoc;
+    };
+  }
+
   (globalThis as any).document = document;
-  (globalThis as any).HTMLElement = (document as any).defaultView?.HTMLElement ?? class {};
+  (globalThis as any).HTMLElement = HTMLElement ?? class {};
+  (globalThis as any).Node = (document as any).defaultView?.Node ?? class {};
 
   const turndown = new TurndownService({
     headingStyle: "atx",
@@ -79,6 +95,7 @@ export function convertHtmlToMarkdown(html: string): string {
   // Clean up globalThis
   delete (globalThis as any).document;
   delete (globalThis as any).HTMLElement;
+  delete (globalThis as any).Node;
 
   // Collapse excessive blank lines
   return markdown.replace(/\n{3,}/g, "\n\n").trim();
