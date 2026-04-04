@@ -186,6 +186,18 @@ interface WorkoutLogDao {
     @Delete
     suspend fun deleteSetLog(setLog: SetLog)
 
+    @Query("""
+        SELECT el.note FROM exercise_logs el
+        INNER JOIN workout_logs w ON el.workoutLogId = w.id
+        WHERE el.exerciseId = :exerciseId AND el.note IS NOT NULL AND el.note != '' AND w.endTime IS NOT NULL
+        ORDER BY w.startTime DESC
+        LIMIT 1
+    """)
+    suspend fun getLatestNoteForExercise(exerciseId: Long): String?
+
+    @Query("UPDATE exercise_logs SET note = :note WHERE id = :exerciseLogId")
+    suspend fun updateExerciseLogNote(exerciseLogId: Long, note: String?)
+
     @Query("SELECT * FROM workout_logs ORDER BY startTime DESC")
     suspend fun getAllWorkoutLogsList(): List<WorkoutLog>
 

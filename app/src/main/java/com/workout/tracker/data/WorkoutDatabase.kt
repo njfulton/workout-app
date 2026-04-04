@@ -30,7 +30,7 @@ import com.workout.tracker.data.entity.*
         FeatureUsageLog::class,
         PersonalRecord::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

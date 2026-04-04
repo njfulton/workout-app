@@ -18,5 +18,6 @@ data class ExerciseLog(
     val workoutLogId: Long,
     val exerciseId: Long,
     val orderIndex: Int,
-    val supersetGroup: Int? = null
+    val supersetGroup: Int? = null,
+    val note: String? = null
 )

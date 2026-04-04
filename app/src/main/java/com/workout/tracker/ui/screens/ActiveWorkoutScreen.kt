@@ -49,6 +49,7 @@ fun ActiveWorkoutScreen(
     var showExercisePicker by remember { mutableStateOf(false) }
     var showFinishConfirm by remember { mutableStateOf(false) }
     var showExerciseList by remember { mutableStateOf(false) }
+    val allExercisesCompleted by workoutViewModel.allExercisesCompleted.collectAsStateWithLifecycle()
     var showPRCelebration by remember { mutableStateOf<List<PersonalRecord>?>(null) }
 
     val context = LocalContext.current
@@ -224,6 +225,9 @@ fun ActiveWorkoutScreen(
                                 currentGroup.exercises.forEach { ex ->
                                     workoutViewModel.updateExerciseRestSeconds(ex.exerciseLogId, seconds)
                                 }
+                            },
+                            onNoteChanged = { exerciseLogId, note ->
+                                workoutViewModel.updateExerciseNote(exerciseLogId, note)
                             }
                         )
                     } else {
@@ -237,7 +241,8 @@ fun ActiveWorkoutScreen(
                             onStartTimer = { workoutViewModel.startRestTimer(it) },
                             onMarkDone = { workoutViewModel.markExerciseDone(currentGroup.exercises.first().exerciseLogId) },
                             defaultRestSeconds = currentGroup.exercises.first().restSeconds,
-                            onRestSecondsChanged = { workoutViewModel.updateExerciseRestSeconds(currentGroup.exercises.first().exerciseLogId, it) }
+                            onRestSecondsChanged = { workoutViewModel.updateExerciseRestSeconds(currentGroup.exercises.first().exerciseLogId, it) },
+                            onNoteChanged = { workoutViewModel.updateExerciseNote(currentGroup.exercises.first().exerciseLogId, it) }
                         )
                     }
                     // Up next preview
@@ -263,6 +268,48 @@ fun ActiveWorkoutScreen(
                                     "Up next: ${nextGroup.label}",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    // All exercises complete banner
+                    if (allExercisesCompleted) {
+                        Spacer(Modifier.height(16.dp))
+                        Card(
+                            modifier = Modifier.fillMaxWidth().clickable { showFinishConfirm = true },
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        "All exercises complete!",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                    Text(
+                                        "Tap to finish workout",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
@@ -410,7 +457,8 @@ fun FocusedExerciseCard(
     onStartTimer: (Int) -> Unit,
     onMarkDone: () -> Unit,
     defaultRestSeconds: Int = 120,
-    onRestSecondsChanged: ((Int) -> Unit)? = null
+    onRestSecondsChanged: ((Int) -> Unit)? = null,
+    onNoteChanged: ((String) -> Unit)? = null
 ) {
     val nextSetNumber = activeExercise.sets.size + 1
     val targetSets = activeExercise.targetSets
@@ -480,6 +528,30 @@ fun FocusedExerciseCard(
                     }
                 }
             }
+
+            // Exercise notes
+            if (activeExercise.lastNote != null) {
+                Spacer(Modifier.height(4.dp))
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                    Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.StickyNote2, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Last time: ${activeExercise.lastNote}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                    }
+                }
+            }
+            var noteText by remember(activeExercise.exerciseLogId) { mutableStateOf(activeExercise.currentNote) }
+            OutlinedTextField(
+                value = noteText,
+                onValueChange = {
+                    noteText = it
+                    onNoteChanged?.invoke(it)
+                },
+                label = { Text("Note for this session") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodySmall
+            )
 
             Spacer(Modifier.height(12.dp))
 
@@ -632,7 +704,8 @@ fun FocusedSupersetCard(
     onStartTimer: (Int) -> Unit,
     onMarkDone: (Long) -> Unit,
     defaultRestSeconds: Int = 120,
-    onRestSecondsChanged: ((Int) -> Unit)? = null
+    onRestSecondsChanged: ((Int) -> Unit)? = null,
+    onNoteChanged: ((Long, String) -> Unit)? = null
 ) {
     var activeTab by remember { mutableStateOf(0) }
     var currentRestSeconds by remember { mutableStateOf(defaultRestSeconds) }
@@ -719,6 +792,30 @@ fun FocusedSupersetCard(
                         Spacer(Modifier.height(8.dp))
                     }
                 }
+
+                // Exercise note
+                if (currentExercise.lastNote != null) {
+                    Spacer(Modifier.height(4.dp))
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+                        Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.StickyNote2, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Last time: ${currentExercise.lastNote}", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+                var noteText by remember(activeTab, currentExercise.exerciseLogId) { mutableStateOf(currentExercise.currentNote) }
+                OutlinedTextField(
+                    value = noteText,
+                    onValueChange = {
+                        noteText = it
+                        onNoteChanged?.invoke(currentExercise.exerciseLogId, it)
+                    },
+                    label = { Text("Note") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodySmall
+                )
 
                 // Logged sets - tappable
                 if (currentExercise.sets.isNotEmpty()) {

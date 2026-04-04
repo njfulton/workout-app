@@ -33,7 +33,9 @@ data class ActiveExercise(
     val supersetGroup: Int? = null,
     val targetSets: Int? = null,
     val targetReps: Int? = null,
-    val isManuallyDone: Boolean = false
+    val isManuallyDone: Boolean = false,
+    val lastNote: String? = null,
+    val currentNote: String = ""
 )
 
 data class ExerciseGroup(
@@ -116,6 +118,10 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
     // Timer completion event
     private val _timerFinishedEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val timerFinishedEvent: SharedFlow<Unit> = _timerFinishedEvent
+
+    // All exercises completed event
+    private val _allExercisesCompleted = MutableStateFlow(false)
+    val allExercisesCompleted: StateFlow<Boolean> = _allExercisesCompleted
 
     // PR detection events
     private val _newPRs = MutableSharedFlow<List<PersonalRecord>>(extraBufferCapacity = 1)
@@ -208,10 +214,11 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
                     )
                     val suggestion = repository.getProgressiveOverloadSuggestion(te.exerciseId)
                     val history = repository.getExerciseHistory(te.exerciseId)
+                    val lastNote = repository.getLatestNoteForExercise(te.exerciseId)
                     ActiveExercise(
                         exerciseLogId = elId, exercise = exercise, overloadSuggestion = suggestion,
                         restSeconds = te.restSeconds, history = history, supersetGroup = te.supersetGroup,
-                        targetSets = te.targetSets, targetReps = te.targetReps
+                        targetSets = te.targetSets, targetReps = te.targetReps, lastNote = lastNote
                     )
                 }
                 _activeWorkout.value = ActiveWorkoutState(
@@ -235,7 +242,8 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
             )
             val suggestion = repository.getProgressiveOverloadSuggestion(exercise.id)
             val history = repository.getExerciseHistory(exercise.id)
-            val newExercise = ActiveExercise(exerciseLogId = elId, exercise = exercise, overloadSuggestion = suggestion, history = history)
+            val lastNote = repository.getLatestNoteForExercise(exercise.id)
+            val newExercise = ActiveExercise(exerciseLogId = elId, exercise = exercise, overloadSuggestion = suggestion, history = history, lastNote = lastNote)
             _activeWorkout.value = state.copy(exercises = state.exercises + newExercise)
         }
     }
@@ -285,6 +293,11 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
                 val nextIndex = state.currentGroupIndex + 1
                 if (nextIndex < state.groups.size) {
                     _activeWorkout.value = state.copy(currentGroupIndex = nextIndex)
+                } else {
+                    // Last group completed - check if ALL groups are done
+                    if (state.groups.all { it.isCompleted }) {
+                        _allExercisesCompleted.value = true
+                    }
                 }
             }
         }
@@ -317,7 +330,19 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
             val nextIndex = state.currentGroupIndex + 1
             if (nextIndex < state.groups.size) {
                 _activeWorkout.value = state.copy(currentGroupIndex = nextIndex)
+            } else {
+                if (state.groups.all { it.isCompleted }) {
+                    _allExercisesCompleted.value = true
+                }
             }
+        }
+    }
+
+    fun updateExerciseNote(exerciseLogId: Long, note: String) {
+        _activeWorkout.value = _activeWorkout.value.let { state ->
+            state.copy(exercises = state.exercises.map { ae ->
+                if (ae.exerciseLogId == exerciseLogId) ae.copy(currentNote = note) else ae
+            })
         }
     }
 
@@ -362,6 +387,7 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
                 repository.setScheduledWorkoutCompleted(id, false)
             }
             _activeWorkout.value = ActiveWorkoutState()
+            _allExercisesCompleted.value = false
             loadDashboardStats()
         }
     }
@@ -372,6 +398,12 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
             val log = state.workoutLog ?: return@launch
             val endTime = System.currentTimeMillis()
             repository.updateWorkoutLog(log.copy(endTime = endTime))
+            // Save exercise notes
+            state.exercises.forEach { ae ->
+                if (ae.currentNote.isNotBlank()) {
+                    repository.updateExerciseLogNote(ae.exerciseLogId, ae.currentNote)
+                }
+            }
             // Mark the scheduled workout as completed now that we're actually saving
             state.scheduledWorkoutId?.let { id ->
                 repository.setScheduledWorkoutCompleted(id, true)
@@ -408,6 +440,7 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
             )
 
             _activeWorkout.value = ActiveWorkoutState()
+            _allExercisesCompleted.value = false
             _sessionPRs.value = emptyList()
             stopRestTimer()
             loadDashboardStats()

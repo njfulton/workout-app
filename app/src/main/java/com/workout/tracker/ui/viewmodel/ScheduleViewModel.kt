@@ -9,9 +9,11 @@ import com.workout.tracker.data.entity.ScheduledWorkout
 import com.workout.tracker.data.repository.WorkoutRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
+import java.time.temporal.TemporalAdjusters
 
 class ScheduleViewModel(private val repository: WorkoutRepository) : ViewModel() {
 
@@ -36,6 +38,25 @@ class ScheduleViewModel(private val repository: WorkoutRepository) : ViewModel()
 
     fun navigateMonth(delta: Int) {
         _currentMonth.value = _currentMonth.value.plusMonths(delta.toLong())
+    }
+
+    // Week view state
+    private val _currentWeekStart = MutableStateFlow(
+        LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+    )
+    val currentWeekStart: StateFlow<LocalDate> = _currentWeekStart
+
+    val weekSchedule: StateFlow<List<ScheduledWorkoutWithTemplate>> = _currentWeekStart
+        .flatMapLatest { weekStart ->
+            val startMillis = weekStart.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val endMillis = weekStart.plusDays(7)
+                .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() - 1
+            repository.getScheduleBetween(startMillis, endMillis)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun navigateWeek(delta: Int) {
+        _currentWeekStart.value = _currentWeekStart.value.plusWeeks(delta.toLong())
     }
 
     fun scheduleWorkout(templateId: Long, date: LocalDate) {
@@ -106,6 +127,28 @@ class ScheduleViewModel(private val repository: WorkoutRepository) : ViewModel()
         }
     }
 
+    fun scheduleAerobicEvent(
+        activityType: String,
+        date: LocalDate,
+        durationMinutes: Int? = null,
+        distanceMiles: Double? = null,
+        intensity: String? = null
+    ) {
+        viewModelScope.launch {
+            val millis = date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            repository.insertScheduledWorkout(
+                ScheduledWorkout(
+                    scheduledDate = millis,
+                    label = activityType,
+                    activityType = activityType,
+                    plannedDurationMinutes = durationMinutes,
+                    plannedDistanceMiles = distanceMiles,
+                    plannedIntensity = intensity
+                )
+            )
+        }
+    }
+
     private fun ScheduledWorkoutWithTemplate.toEntity() = ScheduledWorkout(
         id = id,
         templateId = templateId,
@@ -113,7 +156,11 @@ class ScheduleViewModel(private val repository: WorkoutRepository) : ViewModel()
         isCompleted = isCompleted,
         completedWorkoutLogId = completedWorkoutLogId,
         label = label,
-        isSkipped = isSkipped
+        isSkipped = isSkipped,
+        activityType = activityType,
+        plannedDurationMinutes = plannedDurationMinutes,
+        plannedDistanceMiles = plannedDistanceMiles,
+        plannedIntensity = plannedIntensity
     )
 
     companion object {

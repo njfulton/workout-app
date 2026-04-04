@@ -60,6 +60,8 @@ class WorkoutRepository(
     suspend fun deleteWorkoutLog(log: WorkoutLog) = workoutLogDao.deleteWorkoutLog(log)
     suspend fun insertSetLogs(logs: List<SetLog>) = workoutLogDao.insertSetLogs(logs)
     suspend fun getExerciseHistory(exerciseId: Long, limit: Int = 50): List<ExerciseHistoryEntry> = workoutLogDao.getExerciseHistory(exerciseId, limit)
+    suspend fun getLatestNoteForExercise(exerciseId: Long): String? = workoutLogDao.getLatestNoteForExercise(exerciseId)
+    suspend fun updateExerciseLogNote(exerciseLogId: Long, note: String?) = workoutLogDao.updateExerciseLogNote(exerciseLogId, note)
     suspend fun getAllDataForExport() = workoutLogDao.getAllDataForExport()
     suspend fun getMuscleGroupVolume(start: Long, end: Long) = workoutLogDao.getMuscleGroupVolume(start, end)
     suspend fun getExerciseProgressData(exerciseId: Long) = workoutLogDao.getExerciseProgressData(exerciseId)

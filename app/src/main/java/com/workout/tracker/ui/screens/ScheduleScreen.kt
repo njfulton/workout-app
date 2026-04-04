@@ -1,7 +1,9 @@
 package com.workout.tracker.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -43,15 +46,19 @@ fun ScheduleScreen(
 ) {
     val currentMonth by scheduleViewModel.currentMonth.collectAsStateWithLifecycle()
     val monthSchedule by scheduleViewModel.monthSchedule.collectAsStateWithLifecycle()
+    val currentWeekStart by scheduleViewModel.currentWeekStart.collectAsStateWithLifecycle()
+    val weekSchedule by scheduleViewModel.weekSchedule.collectAsStateWithLifecycle()
     val templates by templateViewModel.templates.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
     var showClearConfirm by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
+    var isWeekView by remember { mutableStateOf(true) } // Default to weekly view
 
     // Derive dialog items from live schedule so actions (unskip, mark done, etc.) update immediately
-    val selectedDayItems = remember(selectedDate, monthSchedule) {
+    val activeSchedule = if (isWeekView) weekSchedule else monthSchedule
+    val selectedDayItems = remember(selectedDate, activeSchedule) {
         val date = selectedDate ?: return@remember emptyList()
-        monthSchedule.filter { sw ->
+        activeSchedule.filter { sw ->
             Instant.ofEpochMilli(sw.scheduledDate).atZone(ZoneId.systemDefault()).toLocalDate() == date
         }
     }
@@ -66,6 +73,12 @@ fun ScheduleScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { isWeekView = !isWeekView }) {
+                        Icon(
+                            if (isWeekView) Icons.Default.CalendarMonth else Icons.Default.ViewWeek,
+                            contentDescription = if (isWeekView) "Switch to month view" else "Switch to week view"
+                        )
+                    }
                     IconButton(onClick = { showClearConfirm = true }) {
                         Icon(Icons.Default.DeleteSweep, contentDescription = "Clear future schedule")
                     }
@@ -83,59 +96,68 @@ fun ScheduleScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Month header with navigation
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = { scheduleViewModel.navigateMonth(-1) }) {
-                    Icon(Icons.Default.ChevronLeft, contentDescription = "Previous month")
-                }
-                Text(
-                    "${currentMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${currentMonth.year}",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+            if (isWeekView) {
+                WeekScheduleView(
+                    weekStart = currentWeekStart,
+                    schedule = weekSchedule,
+                    onNavigateWeek = { scheduleViewModel.navigateWeek(it) },
+                    onDayClick = { date -> selectedDate = date }
                 )
-                IconButton(onClick = { scheduleViewModel.navigateMonth(1) }) {
-                    Icon(Icons.Default.ChevronRight, contentDescription = "Next month")
-                }
-            }
-
-            // Day-of-week headers
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                val daysOfWeek = listOf(
-                    DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
-                    DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY
-                )
-                daysOfWeek.forEach { dow ->
+            } else {
+                // Month header with navigation
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { scheduleViewModel.navigateMonth(-1) }) {
+                        Icon(Icons.Default.ChevronLeft, contentDescription = "Previous month")
+                    }
                     Text(
-                        dow.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
-                        modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        "${currentMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${currentMonth.year}",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
                     )
+                    IconButton(onClick = { scheduleViewModel.navigateMonth(1) }) {
+                        Icon(Icons.Default.ChevronRight, contentDescription = "Next month")
+                    }
                 }
+
+                // Day-of-week headers
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    val daysOfWeek = listOf(
+                        DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
+                        DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY
+                    )
+                    daysOfWeek.forEach { dow ->
+                        Text(
+                            dow.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+                            modifier = Modifier.weight(1f),
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(4.dp))
+
+                // Calendar grid
+                CalendarGrid(
+                    yearMonth = currentMonth,
+                    schedule = monthSchedule,
+                    onDayClick = { date, _ ->
+                        selectedDate = date
+                    }
+                )
             }
-
-            Spacer(Modifier.height(4.dp))
-
-            // Calendar grid
-            CalendarGrid(
-                yearMonth = currentMonth,
-                schedule = monthSchedule,
-                onDayClick = { date, _ ->
-                    selectedDate = date
-                }
-            )
         }
     }
 
@@ -162,6 +184,10 @@ fun ScheduleScreen(
             onScheduleLabel = { label, date ->
                 scheduleViewModel.scheduleNonTemplate(label, date)
                 showAddDialog = false
+            },
+            onScheduleAerobic = { activityType, date, duration, distance, intensity ->
+                scheduleViewModel.scheduleAerobicEvent(activityType, date, duration, distance, intensity)
+                showAddDialog = false
             }
         )
     }
@@ -185,6 +211,176 @@ fun ScheduleScreen(
                 TextButton(onClick = { showClearConfirm = false }) { Text("Cancel") }
             }
         )
+    }
+}
+
+@Composable
+fun WeekScheduleView(
+    weekStart: LocalDate,
+    schedule: List<ScheduledWorkoutWithTemplate>,
+    onNavigateWeek: (Int) -> Unit,
+    onDayClick: (LocalDate) -> Unit
+) {
+    val today = LocalDate.now()
+    val weekEnd = weekStart.plusDays(6)
+    val dateFormat = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
+    val startStr = dateFormat.format(Date.from(weekStart.atStartOfDay(ZoneId.systemDefault()).toInstant()))
+    val endStr = dateFormat.format(Date.from(weekEnd.atStartOfDay(ZoneId.systemDefault()).toInstant()))
+
+    val scheduleByDay = schedule.groupBy { sw ->
+        Instant.ofEpochMilli(sw.scheduledDate).atZone(ZoneId.systemDefault()).toLocalDate()
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // Week header with navigation
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { onNavigateWeek(-1) }) {
+                Icon(Icons.Default.ChevronLeft, contentDescription = "Previous week")
+            }
+            Text(
+                "$startStr - $endStr",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            IconButton(onClick = { onNavigateWeek(1) }) {
+                Icon(Icons.Default.ChevronRight, contentDescription = "Next week")
+            }
+        }
+
+        // 7 day rows
+        for (dayOffset in 0L..6L) {
+            val date = weekStart.plusDays(dayOffset)
+            val dayItems = scheduleByDay[date] ?: emptyList()
+            val isToday = date == today
+            val isPast = date.isBefore(today)
+            val workoutItems = dayItems.filter { it.label?.lowercase()?.contains("rest") != true }
+
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onDayClick(date) }
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                shape = RoundedCornerShape(8.dp),
+                color = if (isToday) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surface,
+                border = if (isToday) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Day name + date
+                    Column(modifier = Modifier.width(72.dp)) {
+                        Text(
+                            date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isToday) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            "${date.dayOfMonth}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isToday) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    // Scheduled items
+                    if (dayItems.isEmpty()) {
+                        Text(
+                            "No workouts",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                    } else {
+                        Column(modifier = Modifier.weight(1f)) {
+                            dayItems.forEach { item ->
+                                val displayName = item.templateName ?: item.label ?: "Workout"
+                                val isRestDay = item.label?.lowercase()?.contains("rest") == true
+                                val isAerobic = item.activityType != null
+                                val icon = when {
+                                    isRestDay -> Icons.Default.Hotel
+                                    isAerobic -> when (item.activityType) {
+                                        "Running" -> Icons.Default.DirectionsRun
+                                        "Cycling" -> Icons.Default.DirectionsBike
+                                        "Swimming" -> Icons.Default.Pool
+                                        "Walking" -> Icons.Default.DirectionsWalk
+                                        else -> Icons.Default.FitnessCenter
+                                    }
+                                    item.templateId != null -> Icons.Default.FitnessCenter
+                                    else -> Icons.Default.Event
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(vertical = 1.dp)
+                                ) {
+                                    Icon(
+                                        icon,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            displayName,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        if (isAerobic) {
+                                            val details = listOfNotNull(
+                                                item.plannedDurationMinutes?.let { "${it}min" },
+                                                item.plannedDistanceMiles?.let { "${"%.1f".format(it)}mi" },
+                                                item.plannedIntensity
+                                            )
+                                            if (details.isNotEmpty()) {
+                                                Text(
+                                                    details.joinToString(" · "),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Status icon
+                    Spacer(Modifier.width(8.dp))
+                    if (workoutItems.isNotEmpty()) {
+                        val allDone = workoutItems.all { it.isCompleted }
+                        val anyMissed = isPast && workoutItems.any { !it.isCompleted && !it.isSkipped }
+                        val anySkipped = workoutItems.any { it.isSkipped }
+                        when {
+                            allDone -> Icon(
+                                Icons.Default.CheckCircle,
+                                contentDescription = "Completed",
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            anyMissed || anySkipped -> Icon(
+                                Icons.Default.Cancel,
+                                contentDescription = "Missed",
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -404,8 +600,16 @@ fun DayDetailItem(
     val isDone = item.isCompleted || item.isSkipped
     var showMoveDateDialog by remember { mutableStateOf(false) }
 
+    val isAerobic = item.activityType != null
     val icon = when {
         isRestDay -> Icons.Default.Hotel
+        isAerobic -> when (item.activityType) {
+            "Running" -> Icons.Default.DirectionsRun
+            "Cycling" -> Icons.Default.DirectionsBike
+            "Swimming" -> Icons.Default.Pool
+            "Walking" -> Icons.Default.DirectionsWalk
+            else -> Icons.Default.FitnessCenter
+        }
         item.templateId != null -> Icons.Default.FitnessCenter
         else -> Icons.Default.Event
     }
@@ -448,6 +652,23 @@ fun DayDetailItem(
                         statusText,
                         style = MaterialTheme.typography.labelSmall,
                         color = statusColor
+                    )
+                }
+            }
+
+            // Aerobic details
+            if (isAerobic) {
+                val details = listOfNotNull(
+                    item.plannedDurationMinutes?.let { "${it} min" },
+                    item.plannedDistanceMiles?.let { "${"%.1f".format(it)} mi" },
+                    item.plannedIntensity
+                )
+                if (details.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        details.joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -672,7 +893,8 @@ fun ScheduleWorkoutDialog(
     templates: List<TemplateWithExerciseCount>,
     onDismiss: () -> Unit,
     onScheduleTemplate: (Long, LocalDate) -> Unit,
-    onScheduleLabel: (String, LocalDate) -> Unit
+    onScheduleLabel: (String, LocalDate) -> Unit,
+    onScheduleAerobic: ((String, LocalDate, Int?, Double?, String?) -> Unit)? = null
 ) {
     var selectedTemplate by remember { mutableStateOf<TemplateWithExerciseCount?>(null) }
     var selectedLabel by remember { mutableStateOf<String?>(null) }
@@ -680,8 +902,16 @@ fun ScheduleWorkoutDialog(
     var showDatePicker by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
 
-    val quickOptions = listOf("Rest Day", "Cardio", "Mobility")
-    val hasSelection = selectedTemplate != null || selectedLabel != null || customLabel.isNotBlank()
+    // Aerobic fields
+    var selectedAerobic by remember { mutableStateOf<String?>(null) }
+    var aerobicDuration by remember { mutableStateOf("") }
+    var aerobicDistance by remember { mutableStateOf("") }
+    var aerobicIntensity by remember { mutableStateOf<String?>(null) }
+
+    val quickOptions = listOf("Rest Day", "Mobility")
+    val aerobicOptions = listOf("Running", "Cycling", "Swimming", "Walking", "Rowing", "Hiking")
+    val intensityOptions = listOf("Easy", "Moderate", "Tempo", "Intervals", "Hard")
+    val hasSelection = selectedTemplate != null || selectedLabel != null || customLabel.isNotBlank() || selectedAerobic != null
     val dateFormat = remember { SimpleDateFormat("EEE, MMM d", Locale.getDefault()) }
     val displayDate = dateFormat.format(
         Date.from(selectedDate.atStartOfDay(ZoneId.systemDefault()).toInstant())
@@ -699,11 +929,66 @@ fun ScheduleWorkoutDialog(
                             selected = selectedLabel == option,
                             onClick = {
                                 selectedLabel = if (selectedLabel == option) null else option
-                                selectedTemplate = null
-                                customLabel = ""
+                                selectedTemplate = null; customLabel = ""; selectedAerobic = null
                             },
                             label = { Text(option) }
                         )
+                    }
+                }
+
+                // Aerobic activity options
+                Text("Aerobic:", style = MaterialTheme.typography.labelMedium)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    aerobicOptions.forEach { activity ->
+                        FilterChip(
+                            selected = selectedAerobic == activity,
+                            onClick = {
+                                selectedAerobic = if (selectedAerobic == activity) null else activity
+                                selectedTemplate = null; selectedLabel = null; customLabel = ""
+                            },
+                            label = { Text(activity) },
+                            leadingIcon = {
+                                val icon = when (activity) {
+                                    "Running" -> Icons.Default.DirectionsRun
+                                    "Cycling" -> Icons.Default.DirectionsBike
+                                    "Swimming" -> Icons.Default.Pool
+                                    "Walking" -> Icons.Default.DirectionsWalk
+                                    else -> Icons.Default.FitnessCenter
+                                }
+                                Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
+                            }
+                        )
+                    }
+                }
+
+                // Aerobic detail fields (shown when an aerobic activity is selected)
+                if (selectedAerobic != null) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = aerobicDuration,
+                            onValueChange = { aerobicDuration = it },
+                            label = { Text("Min") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = aerobicDistance,
+                            onValueChange = { aerobicDistance = it },
+                            label = { Text("Miles") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                    }
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        intensityOptions.forEach { intensity ->
+                            FilterChip(
+                                selected = aerobicIntensity == intensity,
+                                onClick = { aerobicIntensity = if (aerobicIntensity == intensity) null else intensity },
+                                label = { Text(intensity, style = MaterialTheme.typography.labelSmall) }
+                            )
+                        }
                     }
                 }
 
@@ -711,7 +996,7 @@ fun ScheduleWorkoutDialog(
                     value = customLabel,
                     onValueChange = {
                         customLabel = it
-                        if (it.isNotBlank()) { selectedLabel = null; selectedTemplate = null }
+                        if (it.isNotBlank()) { selectedLabel = null; selectedTemplate = null; selectedAerobic = null }
                     },
                     label = { Text("Or type custom...") },
                     singleLine = true,
@@ -725,7 +1010,7 @@ fun ScheduleWorkoutDialog(
                             TextButton(
                                 onClick = {
                                     selectedTemplate = if (selectedTemplate == template) null else template
-                                    selectedLabel = null; customLabel = ""
+                                    selectedLabel = null; customLabel = ""; selectedAerobic = null
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
@@ -756,6 +1041,13 @@ fun ScheduleWorkoutDialog(
             TextButton(
                 onClick = {
                     when {
+                        selectedAerobic != null -> onScheduleAerobic?.invoke(
+                            selectedAerobic!!,
+                            selectedDate,
+                            aerobicDuration.toIntOrNull(),
+                            aerobicDistance.toDoubleOrNull(),
+                            aerobicIntensity
+                        )
                         selectedTemplate != null -> onScheduleTemplate(selectedTemplate!!.id, selectedDate)
                         selectedLabel != null -> onScheduleLabel(selectedLabel!!, selectedDate)
                         customLabel.isNotBlank() -> onScheduleLabel(customLabel, selectedDate)

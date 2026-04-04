@@ -19,5 +19,9 @@ data class ScheduledWorkout(
     val isCompleted: Boolean = false,
     val completedWorkoutLogId: Long? = null,
     val label: String? = null,
-    val isSkipped: Boolean = false
+    val isSkipped: Boolean = false,
+    val activityType: String? = null,
+    val plannedDurationMinutes: Int? = null,
+    val plannedDistanceMiles: Double? = null,
+    val plannedIntensity: String? = null
 )
