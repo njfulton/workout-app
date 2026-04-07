@@ -104,6 +104,9 @@ object WatchSyncManager {
                 .getCapability(WEAR_CAPABILITY, CapabilityClient.FILTER_REACHABLE)
                 .await()
                 .nodes
+                .also { nodes ->
+                    nodes.forEach { Log.d(TAG, "Capable node: id=${it.id} name=${it.displayName} nearby=${it.isNearby}") }
+                }
                 .map { it.id }
         } catch (e: Exception) {
             Log.w(TAG, "Capability lookup failed: ${e.message}")
@@ -112,7 +115,11 @@ object WatchSyncManager {
         if (capable.isNotEmpty()) return capable
 
         return try {
-            Wearable.getNodeClient(context).connectedNodes.await().map { it.id }
+            Wearable.getNodeClient(context).connectedNodes.await()
+                .also { nodes ->
+                    nodes.forEach { Log.d(TAG, "Connected node: id=${it.id} name=${it.displayName}") }
+                }
+                .map { it.id }
         } catch (e: Exception) {
             Log.w(TAG, "connectedNodes fallback failed: ${e.message}")
             emptyList()

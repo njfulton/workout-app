@@ -25,6 +25,14 @@ class WearApplication : Application() {
         try {
             Wearable.getMessageClient(this).addListener(listener)
             Log.d(TAG, "MessageClient listener registered")
+            // Log local node id so we can verify the phone is sending to us
+            Wearable.getNodeClient(this).localNode
+                .addOnSuccessListener { node ->
+                    Log.d(TAG, "Local node id=${node.id} name=${node.displayName}")
+                }
+                .addOnFailureListener { e ->
+                    Log.w(TAG, "localNode failed: ${e.message}")
+                }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to register listener: ${e.message}")
         }
