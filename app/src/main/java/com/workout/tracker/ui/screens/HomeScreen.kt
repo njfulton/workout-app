@@ -1,9 +1,13 @@
 package com.workout.tracker.ui.screens
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
@@ -21,6 +25,8 @@ import com.workout.tracker.ui.navigation.Screen
 import com.workout.tracker.ui.viewmodel.ScheduleViewModel
 import com.workout.tracker.ui.viewmodel.WorkoutViewModel
 import java.text.SimpleDateFormat
+import java.time.*
+import java.time.format.TextStyle as JavaTextStyle
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,8 +37,11 @@ fun HomeScreen(
     scheduleViewModel: ScheduleViewModel
 ) {
     val activeWorkout by workoutViewModel.activeWorkout.collectAsStateWithLifecycle()
-    val recentWorkouts by workoutViewModel.workoutHistory.collectAsStateWithLifecycle()
     val upcomingSchedule by scheduleViewModel.upcomingSchedule.collectAsStateWithLifecycle()
+    val currentWeekStart by scheduleViewModel.currentWeekStart.collectAsStateWithLifecycle()
+    val weekSchedule by scheduleViewModel.weekSchedule.collectAsStateWithLifecycle()
+    val currentMonth by scheduleViewModel.currentMonth.collectAsStateWithLifecycle()
+    val monthSchedule by scheduleViewModel.monthSchedule.collectAsStateWithLifecycle()
     val dashboardStats by workoutViewModel.dashboardStats.collectAsStateWithLifecycle()
     val scheduleDateFormat = remember { SimpleDateFormat("EEE, MMM d", Locale.getDefault()) }
 
@@ -40,12 +49,9 @@ fun HomeScreen(
     val nextWorkout = upcomingSchedule.firstOrNull {
         !it.isCompleted && !it.isSkipped && it.label?.lowercase()?.contains("rest") != true
     }
-    // Remaining upcoming after the next workout (skip rest days and completed)
-    val upcomingAfterNext = upcomingSchedule
-        .filter { it != nextWorkout }
-        .take(4)
 
     var showLifetimeStats by remember { mutableStateOf(false) }
+    var isWeekView by remember { mutableStateOf(true) }
 
     Scaffold(
         topBar = {
@@ -192,9 +198,9 @@ fun HomeScreen(
                         workoutViewModel.logFeatureUsage("pushups")
                         navController.navigate(Screen.Pushups.route)
                     }
-                    QuickActionCard(Modifier.weight(1f), Icons.Default.CalendarMonth, "Schedule") {
-                        workoutViewModel.logFeatureUsage("schedule")
-                        navController.navigate(Screen.Schedule.route)
+                    QuickActionCard(Modifier.weight(1f), Icons.Default.History, "Recent") {
+                        workoutViewModel.logFeatureUsage("history")
+                        navController.navigate(Screen.History.route)
                     }
                     QuickActionCard(Modifier.weight(1f), Icons.Default.PlayArrow, "Start\nWorkout") {
                         workoutViewModel.logFeatureUsage("start_workout")
@@ -206,69 +212,46 @@ fun HomeScreen(
                 }
             }
 
-            // Upcoming schedule - compact list
-            if (upcomingAfterNext.isNotEmpty()) {
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Upcoming", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.weight(1f))
-                        TextButton(onClick = { navController.navigate(Screen.Schedule.route) }) {
-                            Text("See all", style = MaterialTheme.typography.labelSmall)
-                        }
+            // Schedule section with week/month toggle
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        if (isWeekView) "This Week" else "This Month",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(Modifier.weight(1f))
+                    SegmentedToggle(
+                        isWeekView = isWeekView,
+                        onToggle = { isWeekView = it }
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    TextButton(onClick = { navController.navigate(Screen.Schedule.route) }) {
+                        Text("Open", style = MaterialTheme.typography.labelSmall)
                     }
-                }
-                items(upcomingAfterNext) { scheduled ->
-                    UpcomingWorkoutRow(scheduled, scheduleDateFormat)
                 }
             }
 
-            // Recent workouts - compact
-            if (recentWorkouts.isNotEmpty()) {
+            if (isWeekView) {
                 item {
-                    Spacer(Modifier.height(4.dp))
-                    Text("Recent", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    HomeWeekView(
+                        weekStart = currentWeekStart,
+                        schedule = weekSchedule,
+                        onNavigateWeek = { scheduleViewModel.navigateWeek(it) },
+                        onDayClick = { navController.navigate(Screen.Schedule.route) }
+                    )
                 }
-                items(recentWorkouts.take(3)) { workout ->
-                    val recentDateFormat = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
-                    val recentTimeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { navController.navigate(Screen.WorkoutDetail.createRoute(workout.id)) }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(workout.name, style = MaterialTheme.typography.bodyMedium)
-                                Text(
-                                    recentTimeFormat.format(Date(workout.startTime)),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            val durationMin = workout.endTime?.let { ((it - workout.startTime) / 60000).toInt() }
-                            Text(
-                                buildString {
-                                    append(recentDateFormat.format(Date(workout.startTime)))
-                                    if (durationMin != null && durationMin > 0) append(" \u2022 ${durationMin}m")
-                                },
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
+            } else {
+                item {
+                    HomeMonthView(
+                        yearMonth = currentMonth,
+                        schedule = monthSchedule,
+                        onNavigateMonth = { scheduleViewModel.navigateMonth(it) },
+                        onDayClick = { navController.navigate(Screen.Schedule.route) }
+                    )
                 }
             }
 
@@ -336,37 +319,232 @@ private fun DashboardStatCard(
 }
 
 @Composable
-private fun UpcomingWorkoutRow(
-    scheduled: com.workout.tracker.data.dao.ScheduledWorkoutWithTemplate,
-    dateFormat: SimpleDateFormat
-) {
-    val displayName = scheduled.templateName ?: scheduled.label ?: "Unknown"
-    val isRestDay = scheduled.label?.lowercase()?.contains("rest") == true
-
-    val statusIcon = when {
-        scheduled.isCompleted -> Icons.Default.CheckCircle
-        scheduled.isSkipped -> Icons.Default.Cancel
-        isRestDay -> Icons.Default.Hotel
-        else -> Icons.Default.Circle
-    }
-    val statusColor = when {
-        scheduled.isCompleted -> MaterialTheme.colorScheme.primary
-        scheduled.isSkipped -> MaterialTheme.colorScheme.error
-        else -> MaterialTheme.colorScheme.outlineVariant
-    }
-
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(statusIcon, contentDescription = null, tint = statusColor, modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(12.dp))
-        Text(displayName, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-        Text(
-            dateFormat.format(Date(scheduled.scheduledDate)),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+private fun SegmentedToggle(isWeekView: Boolean, onToggle: (Boolean) -> Unit) {
+    Row {
+        FilterChip(
+            selected = isWeekView,
+            onClick = { onToggle(true) },
+            label = { Text("Week", style = MaterialTheme.typography.labelSmall) }
         )
+        Spacer(Modifier.width(4.dp))
+        FilterChip(
+            selected = !isWeekView,
+            onClick = { onToggle(false) },
+            label = { Text("Month", style = MaterialTheme.typography.labelSmall) }
+        )
+    }
+}
+
+@Composable
+private fun HomeWeekView(
+    weekStart: LocalDate,
+    schedule: List<com.workout.tracker.data.dao.ScheduledWorkoutWithTemplate>,
+    onNavigateWeek: (Int) -> Unit,
+    onDayClick: (LocalDate) -> Unit
+) {
+    val today = LocalDate.now()
+    val weekEnd = weekStart.plusDays(6)
+    val dateFormat = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
+    val startStr = dateFormat.format(Date.from(weekStart.atStartOfDay(ZoneId.systemDefault()).toInstant()))
+    val endStr = dateFormat.format(Date.from(weekEnd.atStartOfDay(ZoneId.systemDefault()).toInstant()))
+    val scheduleByDay = schedule.groupBy { sw ->
+        Instant.ofEpochMilli(sw.scheduledDate).atZone(ZoneId.systemDefault()).toLocalDate()
+    }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(vertical = 8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { onNavigateWeek(-1) }) {
+                    Icon(Icons.Default.ChevronLeft, contentDescription = "Previous week")
+                }
+                Text("$startStr - $endStr", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                IconButton(onClick = { onNavigateWeek(1) }) {
+                    Icon(Icons.Default.ChevronRight, contentDescription = "Next week")
+                }
+            }
+            for (dayOffset in 0L..6L) {
+                val date = weekStart.plusDays(dayOffset)
+                val dayItems = scheduleByDay[date] ?: emptyList()
+                val isToday = date == today
+                val isPast = date.isBefore(today)
+                val workoutItems = dayItems.filter { it.label?.lowercase()?.contains("rest") != true }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onDayClick(date) }
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.width(56.dp)) {
+                        Text(
+                            date.dayOfWeek.getDisplayName(JavaTextStyle.SHORT, Locale.getDefault()),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isToday) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            "${date.dayOfMonth}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isToday) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    if (dayItems.isEmpty()) {
+                        Text(
+                            "—",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                        )
+                    } else {
+                        Column(modifier = Modifier.weight(1f)) {
+                            dayItems.forEach { item ->
+                                val displayName = item.templateName ?: item.label ?: "Workout"
+                                Text(
+                                    displayName,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                    if (workoutItems.isNotEmpty()) {
+                        val allDone = workoutItems.all { it.isCompleted }
+                        val anyMissed = isPast && workoutItems.any { !it.isCompleted && !it.isSkipped }
+                        val anySkipped = workoutItems.any { it.isSkipped }
+                        when {
+                            allDone -> Icon(
+                                Icons.Default.CheckCircle, contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)
+                            )
+                            anyMissed || anySkipped -> Icon(
+                                Icons.Default.Cancel, contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeMonthView(
+    yearMonth: YearMonth,
+    schedule: List<com.workout.tracker.data.dao.ScheduledWorkoutWithTemplate>,
+    onNavigateMonth: (Int) -> Unit,
+    onDayClick: (LocalDate) -> Unit
+) {
+    val today = LocalDate.now()
+    val firstOfMonth = yearMonth.atDay(1)
+    val startOffset = firstOfMonth.dayOfWeek.value - 1
+    val daysInMonth = yearMonth.lengthOfMonth()
+    val scheduleByDay = schedule.groupBy { sw ->
+        Instant.ofEpochMilli(sw.scheduledDate).atZone(ZoneId.systemDefault()).toLocalDate()
+    }
+    val totalCells = startOffset + daysInMonth
+    val numWeeks = (totalCells + 6) / 7
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { onNavigateMonth(-1) }) {
+                    Icon(Icons.Default.ChevronLeft, contentDescription = "Previous month")
+                }
+                Text(
+                    "${yearMonth.month.getDisplayName(JavaTextStyle.FULL, Locale.getDefault())} ${yearMonth.year}",
+                    style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold
+                )
+                IconButton(onClick = { onNavigateMonth(1) }) {
+                    Icon(Icons.Default.ChevronRight, contentDescription = "Next month")
+                }
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                listOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY,
+                    DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY).forEach { dow ->
+                    Text(
+                        dow.getDisplayName(JavaTextStyle.SHORT, Locale.getDefault()).take(1),
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            for (week in 0 until numWeeks) {
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    for (dayInWeek in 0 until 7) {
+                        val cellIndex = week * 7 + dayInWeek
+                        val dayOfMonth = cellIndex - startOffset + 1
+                        if (dayOfMonth in 1..daysInMonth) {
+                            val date = yearMonth.atDay(dayOfMonth)
+                            val dayItems = scheduleByDay[date] ?: emptyList()
+                            val isToday = date == today
+                            val isPast = date.isBefore(today)
+                            val workoutItems = dayItems.filter { it.label?.lowercase()?.contains("rest") != true }
+                            val allDone = workoutItems.isNotEmpty() && workoutItems.all { it.isCompleted }
+                            val anyMissed = isPast && workoutItems.any { !it.isCompleted && !it.isSkipped }
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .aspectRatio(1f)
+                                    .padding(2.dp)
+                                    .clickable { onDayClick(date) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = if (isToday) MaterialTheme.colorScheme.primaryContainer
+                                    else MaterialTheme.colorScheme.surface,
+                                    border = if (isToday) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    Column(
+                                        modifier = Modifier.fillMaxSize(),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Text(
+                                            "$dayOfMonth",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                        when {
+                                            allDone -> Icon(
+                                                Icons.Default.CheckCircle, contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(10.dp)
+                                            )
+                                            anyMissed -> Icon(
+                                                Icons.Default.Cancel, contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(10.dp)
+                                            )
+                                            workoutItems.isNotEmpty() -> Box(
+                                                modifier = Modifier
+                                                    .size(4.dp)
+                                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                                    .background(MaterialTheme.colorScheme.primary)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            Box(modifier = Modifier.weight(1f).aspectRatio(1f))
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
