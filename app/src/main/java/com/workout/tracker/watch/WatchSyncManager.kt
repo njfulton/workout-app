@@ -2,6 +2,7 @@ package com.workout.tracker.watch
 
 import android.content.Context
 import android.util.Log
+import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
@@ -10,11 +11,15 @@ import org.json.JSONObject
 
 /**
  * Sends workout state from the phone to any paired Wear OS watches.
- * Uses the Wearable MessageClient. Failures are logged and swallowed so
- * missing/disconnected watches never break the phone workout flow.
+ * Uses capability-based node discovery so messages are delivered reliably
+ * even though the phone and watch apps have different package names.
+ * Failures are logged and swallowed so a missing/disconnected watch
+ * never breaks the phone workout flow.
  */
 object WatchSyncManager {
     private const val TAG = "WatchSyncManager"
+    private const val WEAR_CAPABILITY = "workout_tracker_wear"
+
     const val PATH_WORKOUT_START = "/workout/start"
     const val PATH_WORKOUT_UPDATE = "/workout/update"
     const val PATH_WORKOUT_TIMER = "/workout/timer"
@@ -67,15 +72,50 @@ object WatchSyncManager {
     private suspend fun sendMessage(context: Context, path: String, data: String) {
         try {
             withContext(Dispatchers.IO) {
-                val nodeClient = Wearable.getNodeClient(context)
                 val messageClient = Wearable.getMessageClient(context)
-                val nodes = nodeClient.connectedNodes.await()
-                for (node in nodes) {
-                    messageClient.sendMessage(node.id, path, data.toByteArray()).await()
+                val nodeIds = findTargetNodeIds(context)
+                if (nodeIds.isEmpty()) {
+                    Log.w(TAG, "No reachable watch nodes for $path")
+                    return@withContext
+                }
+                for (nodeId in nodeIds) {
+                    try {
+                        messageClient.sendMessage(nodeId, path, data.toByteArray()).await()
+                        Log.d(TAG, "Sent $path to $nodeId")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "sendMessage failed for $nodeId: ${e.message}")
+                    }
                 }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to send $path to watch: ${e.message}")
+        }
+    }
+
+    /**
+     * Prefer nodes that advertise the watch app's capability; fall back to all
+     * reachable connected nodes so something still gets delivered during setup
+     * before the capability has been discovered.
+     */
+    private suspend fun findTargetNodeIds(context: Context): List<String> {
+        val capabilityClient = Wearable.getCapabilityClient(context)
+        val capable = try {
+            capabilityClient
+                .getCapability(WEAR_CAPABILITY, CapabilityClient.FILTER_REACHABLE)
+                .await()
+                .nodes
+                .map { it.id }
+        } catch (e: Exception) {
+            Log.w(TAG, "Capability lookup failed: ${e.message}")
+            emptyList()
+        }
+        if (capable.isNotEmpty()) return capable
+
+        return try {
+            Wearable.getNodeClient(context).connectedNodes.await().map { it.id }
+        } catch (e: Exception) {
+            Log.w(TAG, "connectedNodes fallback failed: ${e.message}")
+            emptyList()
         }
     }
 }
