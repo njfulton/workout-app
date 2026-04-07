@@ -125,89 +125,81 @@ fun HomeScreen(
                 }
             }
 
-            // Next Workout - prominent card
-            if (nextWorkout != null && !activeWorkout.isActive) {
+            // Next Workout card + Pushups/More buttons (single row)
+            if (!activeWorkout.isActive) {
                 item {
-                    Card(
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Column(modifier = Modifier.padding(20.dp)) {
-                            Text(
-                                "Next Workout",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                nextWorkout.templateName ?: nextWorkout.label ?: "Workout",
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                            Text(
-                                scheduleDateFormat.format(Date(nextWorkout.scheduledDate)),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                            )
-                            if (nextWorkout.label != null && nextWorkout.templateName != null) {
-                                Text(
-                                    nextWorkout.label,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                                )
-                            }
-                            if (nextWorkout.templateId != null) {
-                                Spacer(Modifier.height(12.dp))
-                                Button(
-                                    onClick = {
-                                        workoutViewModel.logFeatureUsage("start_workout")
-                                        workoutViewModel.startWorkout(
-                                            name = nextWorkout.templateName ?: "Workout",
-                                            type = com.workout.tracker.data.entity.WorkoutType.STRENGTH,
-                                            templateId = nextWorkout.templateId,
-                                            scheduledWorkoutId = nextWorkout.id
-                                        )
-                                        navController.navigate(Screen.ActiveWorkout.route) {
-                                            popUpTo(Screen.Home.route)
+                        if (nextWorkout != null) {
+                            Card(
+                                modifier = Modifier.weight(1f),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        "Next Workout",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                    )
+                                    Text(
+                                        nextWorkout.templateName ?: nextWorkout.label ?: "Workout",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        maxLines = 2
+                                    )
+                                    Text(
+                                        scheduleDateFormat.format(Date(nextWorkout.scheduledDate)),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                    )
+                                    if (nextWorkout.templateId != null) {
+                                        Spacer(Modifier.height(8.dp))
+                                        Button(
+                                            onClick = {
+                                                workoutViewModel.logFeatureUsage("start_workout")
+                                                workoutViewModel.startWorkout(
+                                                    name = nextWorkout.templateName ?: "Workout",
+                                                    type = com.workout.tracker.data.entity.WorkoutType.STRENGTH,
+                                                    templateId = nextWorkout.templateId,
+                                                    scheduledWorkoutId = nextWorkout.id
+                                                )
+                                                navController.navigate(Screen.ActiveWorkout.route) {
+                                                    popUpTo(Screen.Home.route)
+                                                }
+                                            },
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                contentColor = MaterialTheme.colorScheme.primaryContainer
+                                            ),
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("Start", style = MaterialTheme.typography.labelMedium)
                                         }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        contentColor = MaterialTheme.colorScheme.primaryContainer
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Start Workout", style = MaterialTheme.typography.titleSmall)
+                                    }
                                 }
                             }
+                        } else {
+                            Spacer(Modifier.weight(1f))
                         }
-                    }
-                }
-            }
-
-            // Quick actions row - only the essentials
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    QuickActionCard(Modifier.weight(1f), Icons.Default.Sports, "Pushups") {
-                        workoutViewModel.logFeatureUsage("pushups")
-                        navController.navigate(Screen.Pushups.route)
-                    }
-                    QuickActionCard(Modifier.weight(1f), Icons.Default.History, "Recent") {
-                        workoutViewModel.logFeatureUsage("history")
-                        navController.navigate(Screen.History.route)
-                    }
-                    QuickActionCard(Modifier.weight(1f), Icons.Default.PlayArrow, "Start\nWorkout") {
-                        workoutViewModel.logFeatureUsage("start_workout")
-                        navController.navigate(Screen.StartWorkout.route)
-                    }
-                    QuickActionCard(Modifier.weight(1f), Icons.Default.MoreHoriz, "More") {
-                        navController.navigate(Screen.Utilities.route)
+                        // Right column: Pushups + More stacked
+                        Column(
+                            modifier = Modifier.width(100.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            QuickActionCard(Modifier.fillMaxWidth(), Icons.Default.Sports, "Pushups") {
+                                workoutViewModel.logFeatureUsage("pushups")
+                                navController.navigate(Screen.Pushups.route)
+                            }
+                            QuickActionCard(Modifier.fillMaxWidth(), Icons.Default.MoreHoriz, "More") {
+                                navController.navigate(Screen.Utilities.route)
+                            }
+                        }
                     }
                 }
             }
