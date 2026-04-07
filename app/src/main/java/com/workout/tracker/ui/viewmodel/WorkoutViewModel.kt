@@ -338,6 +338,30 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
         }
     }
 
+    // Template preview (for schedule day detail dialog)
+    data class TemplateExercisePreview(
+        val exerciseName: String,
+        val targetSets: Int,
+        val targetReps: Int,
+        val lastWeightLbs: Double?,
+        val supersetGroup: Int?
+    )
+
+    suspend fun getTemplatePreview(templateId: Long): List<TemplateExercisePreview> {
+        val templateExercises = repository.getTemplateExercises(templateId)
+        return templateExercises.mapNotNull { te ->
+            val exercise = repository.getExerciseById(te.exerciseId) ?: return@mapNotNull null
+            val lastWeight = repository.getMaxWeightForExercise(te.exerciseId)
+            TemplateExercisePreview(
+                exerciseName = exercise.name,
+                targetSets = te.targetSets,
+                targetReps = te.targetReps,
+                lastWeightLbs = lastWeight,
+                supersetGroup = te.supersetGroup
+            )
+        }
+    }
+
     fun updateExerciseNote(exerciseLogId: Long, note: String) {
         _activeWorkout.value = _activeWorkout.value.let { state ->
             state.copy(exercises = state.exercises.map { ae ->

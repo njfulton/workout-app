@@ -599,6 +599,14 @@ fun DayDetailItem(
     val isRestDay = item.label?.lowercase()?.contains("rest") == true
     val isDone = item.isCompleted || item.isSkipped
     var showMoveDateDialog by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
+    var preview by remember { mutableStateOf<List<com.workout.tracker.ui.viewmodel.WorkoutViewModel.TemplateExercisePreview>>(emptyList()) }
+
+    LaunchedEffect(expanded, item.templateId) {
+        if (expanded && item.templateId != null && preview.isEmpty()) {
+            preview = workoutViewModel.getTemplatePreview(item.templateId)
+        }
+    }
 
     val isAerobic = item.activityType != null
     val icon = when {
@@ -638,7 +646,10 @@ fun DayDetailItem(
         )
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = if (item.templateId != null) Modifier.clickable { expanded = !expanded } else Modifier
+            ) {
                 Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(
@@ -654,6 +665,61 @@ fun DayDetailItem(
                         color = statusColor
                     )
                 }
+                if (item.templateId != null) {
+                    Icon(
+                        if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (expanded) "Collapse" else "Expand",
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            // Expanded exercise preview
+            if (expanded && preview.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                @Suppress("DEPRECATION") Divider()
+                Spacer(Modifier.height(8.dp))
+                preview.forEachIndexed { index, ex ->
+                    val isSupersetWithPrev = ex.supersetGroup != null &&
+                        index > 0 && preview[index - 1].supersetGroup == ex.supersetGroup
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp, horizontal = if (isSupersetWithPrev) 16.dp else 0.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (ex.supersetGroup != null) {
+                            Icon(
+                                Icons.Default.Link,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.width(4.dp))
+                        }
+                        Text(
+                            ex.exerciseName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            "${ex.targetSets} × ${ex.targetReps}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (ex.lastWeightLbs != null && ex.lastWeightLbs > 0) {
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "${ex.lastWeightLbs.toInt()} lb",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                @Suppress("DEPRECATION") Divider()
             }
 
             // Aerobic details
