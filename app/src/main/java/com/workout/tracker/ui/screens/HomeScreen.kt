@@ -318,6 +318,7 @@ private fun DashboardStatCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SegmentedToggle(isWeekView: Boolean, onToggle: (Boolean) -> Unit) {
     Row {
