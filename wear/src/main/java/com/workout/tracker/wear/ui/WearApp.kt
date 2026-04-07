@@ -17,8 +17,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.*
+import com.workout.tracker.wear.WatchMessageSender
 import com.workout.tracker.wear.WatchState
 import com.workout.tracker.wear.WatchWorkoutState
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun WearApp() {
@@ -26,7 +29,7 @@ fun WearApp() {
     val restFinishedTick by WatchState.restFinishedTick.collectAsState()
     val context = LocalContext.current
 
-    // Buzz the watch when the phone reports the rest timer has hit zero
+    // Buzz the watch when rest hits zero
     LaunchedEffect(restFinishedTick) {
         if (restFinishedTick > 0L) vibrate(context)
     }
@@ -34,7 +37,7 @@ fun WearApp() {
     MaterialTheme {
         when {
             state.restRunning -> RestTimerScreen(state)
-            state.isActive -> ActiveWorkoutScreen(state)
+            state.isActive -> ActiveWorkoutScreen(state, context)
             else -> IdleScreen()
         }
     }
@@ -71,7 +74,10 @@ private fun IdleScreen() {
 }
 
 @Composable
-private fun ActiveWorkoutScreen(state: WatchWorkoutState) {
+private fun ActiveWorkoutScreen(state: WatchWorkoutState, context: Context) {
+    val scope = rememberCoroutineScope()
+    var sending by remember { mutableStateOf(false) }
+
     Scaffold(timeText = { TimeText() }) {
         Column(
             modifier = Modifier
@@ -88,40 +94,70 @@ private fun ActiveWorkoutScreen(state: WatchWorkoutState) {
                 textAlign = TextAlign.Center,
                 maxLines = 1
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(2.dp))
             Text(
                 state.exerciseName.ifBlank { "—" },
-                fontSize = 18.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
                 textAlign = TextAlign.Center,
                 maxLines = 2
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
             val setsText = if (state.totalSets > 0)
                 "${state.setsDone} / ${state.totalSets} sets"
             else "${state.setsDone} sets"
             Text(
                 setsText,
-                fontSize = 16.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colors.primary
             )
             if (state.lastSet.isNotBlank()) {
-                Spacer(Modifier.height(4.dp))
                 Text(
                     "Last: ${state.lastSet}",
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     color = Color.Gray,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    maxLines = 1
                 )
             }
+            Spacer(Modifier.height(8.dp))
+            CompactChip(
+                onClick = {
+                    if (!sending) {
+                        sending = true
+                        scope.launch {
+                            WatchMessageSender.requestLogSet(context)
+                            delay(500)
+                            sending = false
+                        }
+                    }
+                },
+                label = { Text(if (sending) "…" else "Log Set") },
+                colors = ChipDefaults.primaryChipColors()
+            )
         }
     }
 }
 
 @Composable
 private fun RestTimerScreen(state: WatchWorkoutState) {
+    // Local countdown: compute remaining from restEndTimeMillis and tick every ~200ms
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(state.restEndTimeMillis) {
+        while (state.restRunning) {
+            now = System.currentTimeMillis()
+            if (now >= state.restEndTimeMillis) {
+                WatchState.markRestFinishedLocally()
+                break
+            }
+            delay(200)
+        }
+    }
+    val remainingMs = (state.restEndTimeMillis - now).coerceAtLeast(0L)
+    val remainingSec = (remainingMs / 1000).toInt()
+
     Scaffold(timeText = { TimeText() }) {
         Column(
             modifier = Modifier.fillMaxSize().background(Color.Black),
@@ -131,7 +167,7 @@ private fun RestTimerScreen(state: WatchWorkoutState) {
             Text("REST", fontSize = 14.sp, color = Color.Gray)
             Spacer(Modifier.height(4.dp))
             Text(
-                "${state.restSeconds / 60}:${(state.restSeconds % 60).toString().padStart(2, '0')}",
+                "${remainingSec / 60}:${(remainingSec % 60).toString().padStart(2, '0')}",
                 fontSize = 48.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colors.primary

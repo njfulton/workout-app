@@ -15,6 +15,7 @@ import com.workout.tracker.data.repository.OverloadSuggestion
 import com.workout.tracker.data.repository.WorkoutRepository
 import com.workout.tracker.health.HealthConnectManager
 import com.workout.tracker.util.OneRepMaxCalculator
+import com.workout.tracker.watch.WatchEventBus
 import com.workout.tracker.watch.WatchSyncManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
@@ -151,6 +152,33 @@ class WorkoutViewModel(
 
     init {
         loadDashboardStats()
+        viewModelScope.launch {
+            WatchEventBus.events.collect { event ->
+                when (event) {
+                    is WatchEventBus.Event.LogSetRequested -> logNextSetFromWatch()
+                }
+            }
+        }
+    }
+
+    /**
+     * Called when the watch asks us to log the next set. Uses the current exercise's
+     * target reps and the last-used weight (or the pre-fill suggestion) as defaults.
+     * Silently no-ops if there's no active workout or no current exercise.
+     */
+    private fun logNextSetFromWatch() {
+        val state = _activeWorkout.value
+        if (!state.isActive) return
+        val group = state.currentGroup ?: return
+        val ex = group.exercises.firstOrNull() ?: return
+        val reps = ex.targetReps ?: ex.sets.lastOrNull { !it.isWarmup }?.reps ?: return
+        val weight = ex.sets.lastOrNull { !it.isWarmup }?.weightLbs
+            ?: ex.overloadSuggestion?.suggestedWeight
+            ?: ex.history.firstOrNull()?.weightLbs
+        val setNumber = ex.sets.size + 1
+        logSet(ex.exerciseLogId, setNumber, reps, weight, isWarmup = false)
+        // Auto-start the rest timer to match the phone's normal flow
+        startRestTimer(ex.restSeconds)
     }
 
     fun loadDashboardStats() {

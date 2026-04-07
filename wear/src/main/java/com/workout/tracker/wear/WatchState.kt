@@ -13,9 +13,9 @@ data class WatchWorkoutState(
     val setsDone: Int = 0,
     val totalSets: Int = 0,
     val lastSet: String = "",
-    val restSeconds: Int = 0,
+    val restInitialSeconds: Int = 0,
     val restRunning: Boolean = false,
-    val restStartedAtMillis: Long = 0L
+    val restEndTimeMillis: Long = 0L
 )
 
 object WatchState {
@@ -34,8 +34,9 @@ object WatchState {
             setsDone = setsDone,
             totalSets = totalSets,
             lastSet = "",
-            restSeconds = 0,
-            restRunning = false
+            restInitialSeconds = 0,
+            restRunning = false,
+            restEndTimeMillis = 0L
         )
     }
 
@@ -55,10 +56,19 @@ object WatchState {
             _restFinishedTick.value = System.currentTimeMillis()
         }
         _state.value = prev.copy(
-            restSeconds = seconds,
+            restInitialSeconds = seconds,
             restRunning = running,
-            restStartedAtMillis = if (running) System.currentTimeMillis() else 0L
+            restEndTimeMillis = if (running) System.currentTimeMillis() + seconds * 1000L else 0L
         )
+    }
+
+    /** Called by the UI when its local countdown reaches zero. */
+    fun markRestFinishedLocally() {
+        val prev = _state.value
+        if (prev.restRunning) {
+            _restFinishedTick.value = System.currentTimeMillis()
+            _state.value = prev.copy(restRunning = false, restEndTimeMillis = 0L)
+        }
     }
 
     fun onWorkoutEnd() {
