@@ -4,10 +4,11 @@ import android.util.Log
 import com.google.android.gms.wearable.DataEventBuffer
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.WearableListenerService
+import org.json.JSONObject
 
 /**
- * Service to receive data and messages from the phone app.
- * Handles workout sync between phone and watch.
+ * Receives messages from the phone and updates [WatchState] so the UI reflects
+ * the phone's active workout in real time.
  */
 class WearDataService : WearableListenerService() {
 
@@ -21,33 +22,44 @@ class WearDataService : WearableListenerService() {
 
     override fun onDataChanged(dataEvents: DataEventBuffer) {
         super.onDataChanged(dataEvents)
-        dataEvents.forEach { event ->
-            Log.d(TAG, "Data changed: ${event.dataItem.uri}")
-        }
     }
 
     override fun onMessageReceived(messageEvent: MessageEvent) {
         super.onMessageReceived(messageEvent)
-        Log.d(TAG, "Message received: ${messageEvent.path}")
+        val payload = runCatching { String(messageEvent.data) }.getOrDefault("")
+        Log.d(TAG, "Message received: ${messageEvent.path} -> $payload")
 
         when (messageEvent.path) {
             PATH_WORKOUT_START -> {
-                // Phone started a workout - update watch UI
-                val workoutData = String(messageEvent.data)
-                Log.d(TAG, "Workout started: $workoutData")
+                val json = parse(payload)
+                WatchState.onWorkoutStart(
+                    name = json?.optString("name").orEmpty(),
+                    exercise = json?.optString("exercise").orEmpty(),
+                    setsDone = json?.optInt("setsDone", 0) ?: 0,
+                    totalSets = json?.optInt("totalSets", 0) ?: 0
+                )
             }
             PATH_WORKOUT_UPDATE -> {
-                // Set logged on phone - update watch display
-                val updateData = String(messageEvent.data)
-                Log.d(TAG, "Workout updated: $updateData")
-            }
-            PATH_WORKOUT_END -> {
-                Log.d(TAG, "Workout ended")
+                val json = parse(payload)
+                WatchState.onWorkoutUpdate(
+                    exercise = json?.optString("exercise").orEmpty(),
+                    setsDone = json?.optInt("setsDone", 0) ?: 0,
+                    totalSets = json?.optInt("totalSets", 0) ?: 0,
+                    lastSet = json?.optString("lastSet").orEmpty()
+                )
             }
             PATH_TIMER_CONTROL -> {
-                val timerData = String(messageEvent.data)
-                Log.d(TAG, "Timer control: $timerData")
+                val json = parse(payload)
+                WatchState.onRestTimer(
+                    seconds = json?.optInt("seconds", 0) ?: 0,
+                    running = json?.optBoolean("running", false) ?: false
+                )
+            }
+            PATH_WORKOUT_END -> {
+                WatchState.onWorkoutEnd()
             }
         }
     }
+
+    private fun parse(data: String): JSONObject? = runCatching { JSONObject(data) }.getOrNull()
 }

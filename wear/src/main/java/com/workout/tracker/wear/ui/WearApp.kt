@@ -1,95 +1,69 @@
 package com.workout.tracker.wear.ui
 
+import android.content.Context
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.*
-import androidx.wear.compose.navigation.SwipeDismissableNavHost
-import androidx.wear.compose.navigation.composable
-import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
+import com.workout.tracker.wear.WatchState
+import com.workout.tracker.wear.WatchWorkoutState
 
 @Composable
 fun WearApp() {
-    val navController = rememberSwipeDismissableNavController()
+    val state by WatchState.state.collectAsState()
+    val restFinishedTick by WatchState.restFinishedTick.collectAsState()
+    val context = LocalContext.current
+
+    // Buzz the watch when the phone reports the rest timer has hit zero
+    LaunchedEffect(restFinishedTick) {
+        if (restFinishedTick > 0L) vibrate(context)
+    }
 
     MaterialTheme {
-        SwipeDismissableNavHost(
-            navController = navController,
-            startDestination = "home"
-        ) {
-            composable("home") {
-                WearHomeScreen(
-                    onStartWorkout = { navController.navigate("workout") },
-                    onQuickLog = { navController.navigate("quick_log") }
-                )
-            }
-            composable("workout") {
-                WearActiveWorkoutScreen(
-                    onFinish = { navController.popBackStack() }
-                )
-            }
-            composable("quick_log") {
-                WearQuickLogScreen(
-                    onDone = { navController.popBackStack() }
-                )
-            }
+        when {
+            state.restRunning -> RestTimerScreen(state)
+            state.isActive -> ActiveWorkoutScreen(state)
+            else -> IdleScreen()
         }
     }
 }
 
 @Composable
-fun WearHomeScreen(
-    onStartWorkout: () -> Unit,
-    onQuickLog: () -> Unit
-) {
-    val listState = rememberScalingLazyListState()
-
-    Scaffold(
-        timeText = { TimeText() },
-        positionIndicator = { PositionIndicator(scalingLazyListState = listState) }
-    ) {
-        ScalingLazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+private fun IdleScreen() {
+    Scaffold(timeText = { TimeText() }) {
+        Box(
+            modifier = Modifier.fillMaxSize().background(Color.Black),
+            contentAlignment = Alignment.Center
         ) {
-            item {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
                 Text(
                     "Workout\nTracker",
                     textAlign = TextAlign.Center,
-                    fontSize = 16.sp,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
-            }
-
-            item {
                 Spacer(Modifier.height(8.dp))
-            }
-
-            item {
-                Chip(
-                    onClick = onStartWorkout,
-                    label = { Text("Start Workout") },
-                    modifier = Modifier.fillMaxWidth(0.9f),
-                    colors = ChipDefaults.primaryChipColors()
-                )
-            }
-
-            item {
-                Chip(
-                    onClick = onQuickLog,
-                    label = { Text("Quick Log") },
-                    modifier = Modifier.fillMaxWidth(0.9f),
-                    colors = ChipDefaults.secondaryChipColors()
+                Text(
+                    "Start a workout\non your phone",
+                    textAlign = TextAlign.Center,
+                    fontSize = 12.sp,
+                    color = Color.Gray
                 )
             }
         }
@@ -97,79 +71,49 @@ fun WearHomeScreen(
 }
 
 @Composable
-fun WearActiveWorkoutScreen(onFinish: () -> Unit) {
-    var elapsedSeconds by remember { mutableStateOf(0L) }
-    var setCount by remember { mutableStateOf(0) }
-    var isTimerRunning by remember { mutableStateOf(false) }
-    var restSeconds by remember { mutableStateOf(0) }
-
-    // Elapsed timer
-    LaunchedEffect(Unit) {
-        while (true) {
-            kotlinx.coroutines.delay(1000)
-            elapsedSeconds++
-            if (isTimerRunning && restSeconds > 0) {
-                restSeconds--
-                if (restSeconds == 0) isTimerRunning = false
-            }
-        }
-    }
-
-    val minutes = elapsedSeconds / 60
-    val seconds = elapsedSeconds % 60
-
-    Scaffold(
-        timeText = { TimeText() }
-    ) {
+private fun ActiveWorkoutScreen(state: WatchWorkoutState) {
+    Scaffold(timeText = { TimeText() }) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black)
-                .padding(8.dp),
+                .padding(horizontal = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (isTimerRunning) {
-                // Rest timer display
-                Text("REST", fontSize = 14.sp, color = Color.Gray)
-                Text(
-                    "${restSeconds / 60}:${(restSeconds % 60).toString().padStart(2, '0')}",
-                    fontSize = 36.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colors.primary
-                )
-                Spacer(Modifier.height(8.dp))
-                CompactChip(
-                    onClick = { isTimerRunning = false; restSeconds = 0 },
-                    label = { Text("Skip") }
-                )
-            } else {
-                // Workout display
-                Text(
-                    "$minutes:${seconds.toString().padStart(2, '0')}",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-                Text("$setCount sets", fontSize = 14.sp, color = Color.Gray)
-                Spacer(Modifier.height(8.dp))
-
-                CompactChip(
-                    onClick = {
-                        setCount++
-                        isTimerRunning = true
-                        restSeconds = 90
-                    },
-                    label = { Text("Log Set") },
-                    colors = ChipDefaults.primaryChipColors()
-                )
-
+            Text(
+                state.workoutName.ifBlank { "Workout" },
+                fontSize = 12.sp,
+                color = Color.Gray,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                state.exerciseName.ifBlank { "—" },
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                maxLines = 2
+            )
+            Spacer(Modifier.height(8.dp))
+            val setsText = if (state.totalSets > 0)
+                "${state.setsDone} / ${state.totalSets} sets"
+            else "${state.setsDone} sets"
+            Text(
+                setsText,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colors.primary
+            )
+            if (state.lastSet.isNotBlank()) {
                 Spacer(Modifier.height(4.dp))
-
-                CompactChip(
-                    onClick = onFinish,
-                    label = { Text("Finish") },
-                    colors = ChipDefaults.secondaryChipColors()
+                Text(
+                    "Last: ${state.lastSet}",
+                    fontSize = 12.sp,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center
                 )
             }
         }
@@ -177,54 +121,54 @@ fun WearActiveWorkoutScreen(onFinish: () -> Unit) {
 }
 
 @Composable
-fun WearQuickLogScreen(onDone: () -> Unit) {
-    var reps by remember { mutableStateOf(10) }
-    var logged by remember { mutableStateOf(false) }
-
-    Scaffold(
-        timeText = { TimeText() }
-    ) {
+private fun RestTimerScreen(state: WatchWorkoutState) {
+    Scaffold(timeText = { TimeText() }) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black)
-                .padding(8.dp),
+            modifier = Modifier.fillMaxSize().background(Color.Black),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (logged) {
-                Text("Logged!", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colors.primary)
-                Spacer(Modifier.height(8.dp))
-                CompactChip(
-                    onClick = onDone,
-                    label = { Text("Done") }
-                )
-            } else {
-                Text("Reps", fontSize = 14.sp, color = Color.Gray)
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    CompactChip(
-                        onClick = { if (reps > 1) reps-- },
-                        label = { Text("-") }
-                    )
-                    Text("$reps", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    CompactChip(
-                        onClick = { reps++ },
-                        label = { Text("+") }
-                    )
-                }
-
-                Spacer(Modifier.height(8.dp))
-
-                CompactChip(
-                    onClick = { logged = true },
-                    label = { Text("Log") },
-                    colors = ChipDefaults.primaryChipColors()
+            Text("REST", fontSize = 14.sp, color = Color.Gray)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "${state.restSeconds / 60}:${(state.restSeconds % 60).toString().padStart(2, '0')}",
+                fontSize = 48.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colors.primary
+            )
+            if (state.exerciseName.isNotBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    state.exerciseName,
+                    fontSize = 12.sp,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1
                 )
             }
         }
     }
+}
+
+private fun vibrate(context: Context) {
+    try {
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vm = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+            vm.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(
+                VibrationEffect.createWaveform(
+                    longArrayOf(0, 200, 100, 200, 100, 400),
+                    -1
+                )
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(longArrayOf(0, 200, 100, 200, 100, 400), -1)
+        }
+    } catch (_: Exception) { }
 }

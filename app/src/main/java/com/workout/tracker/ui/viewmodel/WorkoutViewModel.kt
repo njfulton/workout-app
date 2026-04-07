@@ -15,6 +15,7 @@ import com.workout.tracker.data.repository.OverloadSuggestion
 import com.workout.tracker.data.repository.WorkoutRepository
 import com.workout.tracker.health.HealthConnectManager
 import com.workout.tracker.util.OneRepMaxCalculator
+import com.workout.tracker.watch.WatchSyncManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -98,7 +99,10 @@ data class WorkoutDetail(
     val totalSets: Int
 )
 
-class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() {
+class WorkoutViewModel(
+    private val repository: WorkoutRepository,
+    private val appContext: Context? = null
+) : ViewModel() {
 
     private val _activeWorkout = MutableStateFlow(ActiveWorkoutState())
     val activeWorkout: StateFlow<ActiveWorkoutState> = _activeWorkout
@@ -229,6 +233,17 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
             } else {
                 _activeWorkout.value = ActiveWorkoutState(workoutLog = savedLog, isActive = true, isFromTemplate = false, scheduledWorkoutId = scheduledWorkoutId)
             }
+            // Notify watch
+            appContext?.let { ctx ->
+                val st = _activeWorkout.value
+                val ex = st.currentGroup?.exercises?.firstOrNull()
+                launch {
+                    WatchSyncManager.sendWorkoutStart(
+                        ctx, name, ex?.exercise?.name,
+                        ex?.sets?.count { !it.isWarmup } ?: 0, ex?.targetSets
+                    )
+                }
+            }
         }
     }
 
@@ -300,6 +315,7 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
                     }
                 }
             }
+            syncWatchUpdate()
         }
     }
 
@@ -362,6 +378,21 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
         }
     }
 
+    private fun syncWatchUpdate() {
+        val ctx = appContext ?: return
+        val state = _activeWorkout.value
+        val currentGroup = state.currentGroup ?: return
+        val ex = currentGroup.exercises.firstOrNull() ?: return
+        val setsDone = ex.sets.count { !it.isWarmup }
+        val lastSet = ex.sets.lastOrNull { !it.isWarmup }?.let {
+            val w = it.weightLbs
+            if (w != null && w > 0) "${it.reps} x ${w.toInt()}lb" else "${it.reps} reps"
+        }
+        viewModelScope.launch {
+            WatchSyncManager.sendWorkoutUpdate(ctx, ex.exercise.name, setsDone, ex.targetSets, lastSet)
+        }
+    }
+
     fun updateExerciseNote(exerciseLogId: Long, note: String) {
         _activeWorkout.value = _activeWorkout.value.let { state ->
             state.copy(exercises = state.exercises.map { ae ->
@@ -390,6 +421,7 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
         val nextIndex = state.currentGroupIndex + 1
         if (nextIndex < state.groups.size) {
             _activeWorkout.value = state.copy(currentGroupIndex = nextIndex)
+            syncWatchUpdate()
         }
     }
 
@@ -398,6 +430,7 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
         val prevIndex = state.currentGroupIndex - 1
         if (prevIndex >= 0) {
             _activeWorkout.value = state.copy(currentGroupIndex = prevIndex)
+            syncWatchUpdate()
         }
     }
 
@@ -413,6 +446,7 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
             _activeWorkout.value = ActiveWorkoutState()
             _allExercisesCompleted.value = false
             loadDashboardStats()
+            appContext?.let { ctx -> launch { WatchSyncManager.sendWorkoutEnd(ctx) } }
         }
     }
 
@@ -468,6 +502,7 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
             _sessionPRs.value = emptyList()
             stopRestTimer()
             loadDashboardStats()
+            appContext?.let { ctx -> launch { WatchSyncManager.sendWorkoutEnd(ctx) } }
         }
     }
 
@@ -494,6 +529,9 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
         timerJob?.cancel()
         _restTimerSeconds.value = seconds
         _isTimerRunning.value = true
+        appContext?.let { ctx ->
+            viewModelScope.launch { WatchSyncManager.sendRestTimer(ctx, seconds, true) }
+        }
         timerJob = viewModelScope.launch {
             while (_restTimerSeconds.value > 0 && _isTimerRunning.value) {
                 kotlinx.coroutines.delay(1000)
@@ -501,6 +539,9 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
             }
             if (_restTimerSeconds.value == 0) {
                 _timerFinishedEvent.tryEmit(Unit)
+                appContext?.let { ctx ->
+                    launch { WatchSyncManager.sendRestTimer(ctx, 0, false) }
+                }
             }
             _isTimerRunning.value = false
         }
@@ -509,11 +550,17 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
     fun skipRestTimer() {
         _isTimerRunning.value = false
         _restTimerSeconds.value = 0
+        appContext?.let { ctx ->
+            viewModelScope.launch { WatchSyncManager.sendRestTimer(ctx, 0, false) }
+        }
     }
 
     fun stopRestTimer() {
         _isTimerRunning.value = false
         _restTimerSeconds.value = 0
+        appContext?.let { ctx ->
+            viewModelScope.launch { WatchSyncManager.sendRestTimer(ctx, 0, false) }
+        }
     }
 
     fun syncWorkoutToHealthConnect(context: Context, workoutName: String, workoutType: com.workout.tracker.data.entity.WorkoutType, startTime: Long, endTime: Long) {
@@ -664,7 +711,7 @@ class WorkoutViewModel(private val repository: WorkoutRepository) : ViewModel() 
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as WorkoutApp
-                WorkoutViewModel(app.repository)
+                WorkoutViewModel(app.repository, app.applicationContext)
             }
         }
     }
