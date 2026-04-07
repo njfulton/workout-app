@@ -112,13 +112,16 @@ fun ScheduleScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val isPastMonth = currentMonth.isBefore(YearMonth.now())
                     IconButton(onClick = { scheduleViewModel.navigateMonth(-1) }) {
                         Icon(Icons.Default.ChevronLeft, contentDescription = "Previous month")
                     }
                     Text(
                         "${currentMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${currentMonth.year}",
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = if (isPastMonth) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        else MaterialTheme.colorScheme.onSurface
                     )
                     IconButton(onClick = { scheduleViewModel.navigateMonth(1) }) {
                         Icon(Icons.Default.ChevronRight, contentDescription = "Next month")
@@ -240,13 +243,16 @@ fun WeekScheduleView(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val isPastWeek = weekEnd.isBefore(today)
             IconButton(onClick = { onNavigateWeek(-1) }) {
                 Icon(Icons.Default.ChevronLeft, contentDescription = "Previous week")
             }
             Text(
                 "$startStr - $endStr",
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = if (isPastWeek) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                else MaterialTheme.colorScheme.onSurface
             )
             IconButton(onClick = { onNavigateWeek(1) }) {
                 Icon(Icons.Default.ChevronRight, contentDescription = "Next week")

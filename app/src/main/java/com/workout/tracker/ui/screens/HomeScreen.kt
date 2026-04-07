@@ -359,10 +359,17 @@ private fun HomeWeekView(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                val isPastWeek = weekEnd.isBefore(today)
                 IconButton(onClick = { onNavigateWeek(-1) }) {
                     Icon(Icons.Default.ChevronLeft, contentDescription = "Previous week")
                 }
-                Text("$startStr - $endStr", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    "$startStr - $endStr",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isPastWeek) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    else MaterialTheme.colorScheme.onSurface
+                )
                 IconButton(onClick = { onNavigateWeek(1) }) {
                     Icon(Icons.Default.ChevronRight, contentDescription = "Next week")
                 }
@@ -459,12 +466,16 @@ private fun HomeMonthView(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                val isPastMonth = yearMonth.isBefore(YearMonth.now())
                 IconButton(onClick = { onNavigateMonth(-1) }) {
                     Icon(Icons.Default.ChevronLeft, contentDescription = "Previous month")
                 }
                 Text(
                     "${yearMonth.month.getDisplayName(JavaTextStyle.FULL, Locale.getDefault())} ${yearMonth.year}",
-                    style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isPastMonth) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    else MaterialTheme.colorScheme.onSurface
                 )
                 IconButton(onClick = { onNavigateMonth(1) }) {
                     Icon(Icons.Default.ChevronRight, contentDescription = "Next month")
