@@ -2,6 +2,7 @@ package com.workout.tracker.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.FlowRow
@@ -16,12 +17,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.abs
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.workout.tracker.data.dao.ScheduledWorkoutWithTemplate
@@ -101,7 +107,8 @@ fun ScheduleScreen(
                     weekStart = currentWeekStart,
                     schedule = weekSchedule,
                     onNavigateWeek = { scheduleViewModel.navigateWeek(it) },
-                    onDayClick = { date -> selectedDate = date }
+                    onDayClick = { date -> selectedDate = date },
+                    onReschedule = { item, newDate -> scheduleViewModel.reschedule(item, newDate) }
                 )
             } else {
                 // Month header with navigation
@@ -222,7 +229,8 @@ fun WeekScheduleView(
     weekStart: LocalDate,
     schedule: List<ScheduledWorkoutWithTemplate>,
     onNavigateWeek: (Int) -> Unit,
-    onDayClick: (LocalDate) -> Unit
+    onDayClick: (LocalDate) -> Unit,
+    onReschedule: ((ScheduledWorkoutWithTemplate, LocalDate) -> Unit)? = null
 ) {
     val today = LocalDate.now()
     val weekEnd = weekStart.plusDays(6)
@@ -233,6 +241,11 @@ fun WeekScheduleView(
     val scheduleByDay = schedule.groupBy { sw ->
         Instant.ofEpochMilli(sw.scheduledDate).atZone(ZoneId.systemDefault()).toLocalDate()
     }
+
+    // Drag-to-reschedule state
+    var draggedItemId by remember { mutableStateOf<Long?>(null) }
+    var dragOffsetY by remember { mutableStateOf(0f) }
+    val rowCenters = remember { mutableStateMapOf<Int, Float>() }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         // Week header with navigation
@@ -270,6 +283,10 @@ fun WeekScheduleView(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .onGloballyPositioned { coords ->
+                        rowCenters[dayOffset.toInt()] =
+                            coords.positionInParent().y + coords.size.height / 2f
+                    }
                     .clickable { onDayClick(date) }
                     .padding(horizontal = 16.dp, vertical = 2.dp),
                 shape = RoundedCornerShape(8.dp),
@@ -326,9 +343,53 @@ fun WeekScheduleView(
                                     item.templateId != null -> Icons.Default.FitnessCenter
                                     else -> Icons.Default.Event
                                 }
+                                val isDragging = draggedItemId == item.id
+                                val currentDayOffset = dayOffset.toInt()
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(vertical = 1.dp)
+                                    modifier = Modifier
+                                        .padding(vertical = 1.dp)
+                                        .graphicsLayer {
+                                            if (isDragging) {
+                                                translationY = dragOffsetY
+                                                shadowElevation = 16f
+                                                scaleX = 1.03f; scaleY = 1.03f
+                                                alpha = 0.9f
+                                            }
+                                        }
+                                        .then(
+                                            if (onReschedule != null && !item.isCompleted && !item.isSkipped) {
+                                                Modifier.pointerInput(item.id) {
+                                                    detectDragGesturesAfterLongPress(
+                                                        onDragStart = {
+                                                            draggedItemId = item.id
+                                                            dragOffsetY = 0f
+                                                        },
+                                                        onDrag = { change, amount ->
+                                                            change.consume()
+                                                            dragOffsetY += amount.y
+                                                        },
+                                                        onDragEnd = {
+                                                            val sourceCenter = rowCenters[currentDayOffset] ?: 0f
+                                                            val targetCenter = sourceCenter + dragOffsetY
+                                                            val targetDay = rowCenters.entries
+                                                                .minByOrNull { abs(it.value - targetCenter) }
+                                                                ?.key ?: currentDayOffset
+                                                            if (targetDay != currentDayOffset) {
+                                                                val targetDate = weekStart.plusDays(targetDay.toLong())
+                                                                onReschedule(item, targetDate)
+                                                            }
+                                                            draggedItemId = null
+                                                            dragOffsetY = 0f
+                                                        },
+                                                        onDragCancel = {
+                                                            draggedItemId = null
+                                                            dragOffsetY = 0f
+                                                        }
+                                                    )
+                                                }
+                                            } else Modifier
+                                        )
                                 ) {
                                     Icon(
                                         icon,

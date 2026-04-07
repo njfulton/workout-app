@@ -93,6 +93,96 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
         repository.getAllSavedRoutines()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Routine Overview
+    data class RoutineWeek(
+        val weekNumber: Int,
+        val startDate: java.time.LocalDate,
+        val items: List<com.workout.tracker.data.dao.ScheduledWorkoutWithTemplate>,
+        val isPhaseStart: Boolean,
+        val isCurrent: Boolean,
+        val isPast: Boolean
+    )
+
+    data class RoutineOverviewData(
+        val routine: com.workout.tracker.data.entity.SavedRoutine,
+        val startDate: java.time.LocalDate,
+        val currentWeek: Int,
+        val totalWeeks: Int,
+        val weeks: List<RoutineWeek>
+    )
+
+    private val _routineOverview = MutableStateFlow<RoutineOverviewData?>(null)
+    val routineOverview: StateFlow<RoutineOverviewData?> = _routineOverview
+
+    fun loadRoutineOverview() {
+        viewModelScope.launch {
+            val routines = repository.getAllSavedRoutines().first()
+            if (routines.isEmpty()) { _routineOverview.value = null; return@launch }
+
+            // Find the routine with the most recent usage history
+            var best: Pair<com.workout.tracker.data.entity.SavedRoutine, com.workout.tracker.data.entity.RoutineUsageHistory>? = null
+            for (r in routines) {
+                val history = repository.getRoutineUsageHistory(r.id).first()
+                val latest = history.maxByOrNull { it.startDate } ?: continue
+                if (best == null || latest.startDate > best.second.startDate) {
+                    best = r to latest
+                }
+            }
+            val (routine, usage) = best ?: run { _routineOverview.value = null; return@launch }
+
+            val startDate = java.time.Instant.ofEpochMilli(usage.startDate)
+                .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+            val totalWeeks = routine.weekCount
+            val endDate = startDate.plusWeeks(totalWeeks.toLong())
+
+            val startMillis = startDate.atStartOfDay(java.time.ZoneId.systemDefault())
+                .toInstant().toEpochMilli()
+            val endMillis = endDate.atStartOfDay(java.time.ZoneId.systemDefault())
+                .toInstant().toEpochMilli()
+            val scheduled = repository.getScheduleBetweenOnce(startMillis, endMillis)
+
+            val today = java.time.LocalDate.now()
+            val currentWeek = (java.time.temporal.ChronoUnit.DAYS.between(startDate, today) / 7).toInt() + 1
+
+            // Group by week index
+            val itemsByWeek = (1..totalWeeks).associateWith { weekNum ->
+                val wStart = startDate.plusWeeks((weekNum - 1).toLong())
+                val wEnd = wStart.plusWeeks(1)
+                scheduled.filter { sw ->
+                    val d = java.time.Instant.ofEpochMilli(sw.scheduledDate)
+                        .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                    !d.isBefore(wStart) && d.isBefore(wEnd)
+                }
+            }
+
+            // Build weeks and detect phase starts (templateId set changes from previous week)
+            var prevTemplateIds: Set<Long?>? = null
+            val weeks = (1..totalWeeks).map { weekNum ->
+                val wItems = itemsByWeek[weekNum] ?: emptyList()
+                val currentTemplateIds = wItems.map { it.templateId }.toSet()
+                val isPhaseStart = prevTemplateIds != null && currentTemplateIds != prevTemplateIds
+                prevTemplateIds = currentTemplateIds
+                val wStart = startDate.plusWeeks((weekNum - 1).toLong())
+                RoutineWeek(
+                    weekNumber = weekNum,
+                    startDate = wStart,
+                    items = wItems,
+                    isPhaseStart = isPhaseStart || weekNum == 1,
+                    isCurrent = weekNum == currentWeek,
+                    isPast = wStart.plusWeeks(1).isBefore(today) || wStart.plusWeeks(1) == today
+                )
+            }
+
+            _routineOverview.value = RoutineOverviewData(
+                routine = routine,
+                startDate = startDate,
+                currentWeek = currentWeek.coerceIn(1, totalWeeks),
+                totalWeeks = totalWeeks,
+                weeks = weeks
+            )
+        }
+    }
+
     fun clearImportResult() {
         _importResult.value = null
     }

@@ -3,8 +3,14 @@ package com.workout.tracker.ui.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.foundation.layout.*
+import kotlin.math.abs
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,6 +29,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.workout.tracker.ui.navigation.Screen
 import com.workout.tracker.ui.viewmodel.ScheduleViewModel
+import com.workout.tracker.ui.viewmodel.TemplateViewModel
 import com.workout.tracker.ui.viewmodel.WorkoutViewModel
 import java.text.SimpleDateFormat
 import java.time.*
@@ -34,8 +41,11 @@ import java.util.*
 fun HomeScreen(
     navController: NavController,
     workoutViewModel: WorkoutViewModel,
-    scheduleViewModel: ScheduleViewModel
+    scheduleViewModel: ScheduleViewModel,
+    templateViewModel: TemplateViewModel
 ) {
+    val routineOverview by templateViewModel.routineOverview.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { templateViewModel.loadRoutineOverview() }
     val activeWorkout by workoutViewModel.activeWorkout.collectAsStateWithLifecycle()
     val upcomingSchedule by scheduleViewModel.upcomingSchedule.collectAsStateWithLifecycle()
     val currentWeekStart by scheduleViewModel.currentWeekStart.collectAsStateWithLifecycle()
@@ -204,6 +214,51 @@ fun HomeScreen(
                 }
             }
 
+            // Routine progress indicator
+            routineOverview?.let { data ->
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { navController.navigate(Screen.RoutineOverview.route) },
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+                    ) {
+                        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Timeline,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    data.routine.name,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1
+                                )
+                                Text(
+                                    "Week ${data.currentWeek} of ${data.totalWeeks}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            LinearProgressIndicator(
+                                progress = data.currentWeek.toFloat() / data.totalWeeks.toFloat(),
+                                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                trackColor = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.25f)
+                            )
+                        }
+                    }
+                }
+            }
+
             // Schedule section with week/month toggle
             item {
                 Row(
@@ -233,7 +288,8 @@ fun HomeScreen(
                         weekStart = currentWeekStart,
                         schedule = weekSchedule,
                         onNavigateWeek = { scheduleViewModel.navigateWeek(it) },
-                        onDayClick = { navController.navigate(Screen.Schedule.route) }
+                        onDayClick = { navController.navigate(Screen.Schedule.route) },
+                        onReschedule = { item, newDate -> scheduleViewModel.reschedule(item, newDate) }
                     )
                 }
             } else {
@@ -333,7 +389,8 @@ private fun HomeWeekView(
     weekStart: LocalDate,
     schedule: List<com.workout.tracker.data.dao.ScheduledWorkoutWithTemplate>,
     onNavigateWeek: (Int) -> Unit,
-    onDayClick: (LocalDate) -> Unit
+    onDayClick: (LocalDate) -> Unit,
+    onReschedule: (com.workout.tracker.data.dao.ScheduledWorkoutWithTemplate, LocalDate) -> Unit = { _, _ -> }
 ) {
     val today = LocalDate.now()
     val weekEnd = weekStart.plusDays(6)
@@ -343,6 +400,9 @@ private fun HomeWeekView(
     val scheduleByDay = schedule.groupBy { sw ->
         Instant.ofEpochMilli(sw.scheduledDate).atZone(ZoneId.systemDefault()).toLocalDate()
     }
+    var draggedItemId by remember { mutableStateOf<Long?>(null) }
+    var dragOffsetY by remember { mutableStateOf(0f) }
+    val rowCenters = remember { mutableStateMapOf<Int, Float>() }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(vertical = 8.dp)) {
@@ -372,9 +432,14 @@ private fun HomeWeekView(
                 val isToday = date == today
                 val isPast = date.isBefore(today)
                 val workoutItems = dayItems.filter { it.label?.lowercase()?.contains("rest") != true }
+                val currentDayOffset = dayOffset.toInt()
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .onGloballyPositioned { coords ->
+                            rowCenters[currentDayOffset] =
+                                coords.positionInParent().y + coords.size.height / 2f
+                        }
                         .clickable { onDayClick(date) }
                         .padding(horizontal = 16.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -405,10 +470,52 @@ private fun HomeWeekView(
                         Column(modifier = Modifier.weight(1f)) {
                             dayItems.forEach { item ->
                                 val displayName = item.templateName ?: item.label ?: "Workout"
+                                val isDragging = draggedItemId == item.id
+                                val canDrag = !item.isCompleted && !item.isSkipped
                                 Text(
                                     displayName,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    maxLines = 1
+                                    maxLines = 1,
+                                    modifier = Modifier
+                                        .graphicsLayer {
+                                            if (isDragging) {
+                                                translationY = dragOffsetY
+                                                shadowElevation = 16f
+                                                scaleX = 1.03f; scaleY = 1.03f
+                                                alpha = 0.9f
+                                            }
+                                        }
+                                        .then(
+                                            if (canDrag) Modifier.pointerInput(item.id) {
+                                                detectDragGesturesAfterLongPress(
+                                                    onDragStart = {
+                                                        draggedItemId = item.id
+                                                        dragOffsetY = 0f
+                                                    },
+                                                    onDrag = { change, amount ->
+                                                        change.consume()
+                                                        dragOffsetY += amount.y
+                                                    },
+                                                    onDragEnd = {
+                                                        val sourceCenter = rowCenters[currentDayOffset] ?: 0f
+                                                        val targetCenter = sourceCenter + dragOffsetY
+                                                        val targetDay = rowCenters.entries
+                                                            .minByOrNull { abs(it.value - targetCenter) }
+                                                            ?.key ?: currentDayOffset
+                                                        if (targetDay != currentDayOffset) {
+                                                            val targetDate = weekStart.plusDays(targetDay.toLong())
+                                                            onReschedule(item, targetDate)
+                                                        }
+                                                        draggedItemId = null
+                                                        dragOffsetY = 0f
+                                                    },
+                                                    onDragCancel = {
+                                                        draggedItemId = null
+                                                        dragOffsetY = 0f
+                                                    }
+                                                )
+                                            } else Modifier
+                                        )
                                 )
                             }
                         }
