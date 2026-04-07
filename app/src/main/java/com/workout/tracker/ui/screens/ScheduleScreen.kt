@@ -11,6 +11,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.DirectionsBike
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -334,10 +337,10 @@ fun WeekScheduleView(
                                 val icon = when {
                                     isRestDay -> Icons.Default.Hotel
                                     isAerobic -> when (item.activityType) {
-                                        "Running" -> Icons.Default.DirectionsRun
-                                        "Cycling" -> Icons.Default.DirectionsBike
+                                        "Running" -> Icons.AutoMirrored.Filled.DirectionsRun
+                                        "Cycling" -> Icons.AutoMirrored.Filled.DirectionsBike
                                         "Swimming" -> Icons.Default.Pool
-                                        "Walking" -> Icons.Default.DirectionsWalk
+                                        "Walking" -> Icons.AutoMirrored.Filled.DirectionsWalk
                                         else -> Icons.Default.FitnessCenter
                                     }
                                     item.templateId != null -> Icons.Default.FitnessCenter
@@ -679,10 +682,10 @@ fun DayDetailItem(
     val icon = when {
         isRestDay -> Icons.Default.Hotel
         isAerobic -> when (item.activityType) {
-            "Running" -> Icons.Default.DirectionsRun
-            "Cycling" -> Icons.Default.DirectionsBike
+            "Running" -> Icons.AutoMirrored.Filled.DirectionsRun
+            "Cycling" -> Icons.AutoMirrored.Filled.DirectionsBike
             "Swimming" -> Icons.Default.Pool
-            "Walking" -> Icons.Default.DirectionsWalk
+            "Walking" -> Icons.AutoMirrored.Filled.DirectionsWalk
             else -> Icons.Default.FitnessCenter
         }
         item.templateId != null -> Icons.Default.FitnessCenter
@@ -1082,10 +1085,10 @@ fun ScheduleWorkoutDialog(
                             label = { Text(activity) },
                             leadingIcon = {
                                 val icon = when (activity) {
-                                    "Running" -> Icons.Default.DirectionsRun
-                                    "Cycling" -> Icons.Default.DirectionsBike
+                                    "Running" -> Icons.AutoMirrored.Filled.DirectionsRun
+                                    "Cycling" -> Icons.AutoMirrored.Filled.DirectionsBike
                                     "Swimming" -> Icons.Default.Pool
-                                    "Walking" -> Icons.Default.DirectionsWalk
+                                    "Walking" -> Icons.AutoMirrored.Filled.DirectionsWalk
                                     else -> Icons.Default.FitnessCenter
                                 }
                                 Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))

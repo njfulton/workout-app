@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -99,7 +100,7 @@ fun HistoryScreen(
                                 Icon(
                                     when (workout.workoutType) {
                                         WorkoutType.STRENGTH -> Icons.Default.FitnessCenter
-                                        WorkoutType.CARDIO -> Icons.Default.DirectionsRun
+                                        WorkoutType.CARDIO -> Icons.AutoMirrored.Filled.DirectionsRun
                                         WorkoutType.PELOTON -> Icons.Default.PedalBike
                                         WorkoutType.BODYWEIGHT_QUICK -> Icons.Default.Bolt
                                         WorkoutType.OTHER -> Icons.Default.SportsGymnastics

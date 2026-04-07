@@ -5,6 +5,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -88,7 +89,7 @@ fun WorkoutDetailScreen(
                                 Icon(
                                     when (log.workoutType) {
                                         WorkoutType.STRENGTH -> Icons.Default.FitnessCenter
-                                        WorkoutType.CARDIO -> Icons.Default.DirectionsRun
+                                        WorkoutType.CARDIO -> Icons.AutoMirrored.Filled.DirectionsRun
                                         WorkoutType.PELOTON -> Icons.Default.PedalBike
                                         WorkoutType.BODYWEIGHT_QUICK -> Icons.Default.Bolt
                                         WorkoutType.OTHER -> Icons.Default.SportsGymnastics
