@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -35,6 +36,7 @@ fun BackupRestoreScreen(
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var showImportConfirm by remember { mutableStateOf(false) }
     var pendingImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var importMode by remember { mutableStateOf(BackupManager.ImportMode.REPLACE) }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -176,24 +178,43 @@ fun BackupRestoreScreen(
                     }
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Import data from a previously exported JSON file. Exercises with matching names will be merged; everything else will be added.",
+                        "Import data from a previously exported JSON file. Replace All wipes the current database first; Merge keeps current data and skips duplicates.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(12.dp))
 
-                    Button(
-                        onClick = {
-                            filePickerLauncher.launch(arrayOf("application/json", "*/*"))
-                        },
-                        enabled = !isExporting && !isImporting
-                    ) {
-                        if (isImporting) {
-                            Text("Importing\u2026")
-                        } else {
-                            Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Select Backup File")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = {
+                                importMode = BackupManager.ImportMode.REPLACE
+                                filePickerLauncher.launch(arrayOf("application/json", "*/*"))
+                            },
+                            enabled = !isExporting && !isImporting
+                        ) {
+                            if (isImporting && importMode == BackupManager.ImportMode.REPLACE) {
+                                Text("Importing\u2026")
+                            } else {
+                                Icon(Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Replace All")
+                            }
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                importMode = BackupManager.ImportMode.MERGE
+                                filePickerLauncher.launch(arrayOf("application/json", "*/*"))
+                            },
+                            enabled = !isExporting && !isImporting
+                        ) {
+                            if (isImporting && importMode == BackupManager.ImportMode.MERGE) {
+                                Text("Merging\u2026")
+                            } else {
+                                Icon(Icons.Default.MergeType, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Merge")
+                            }
                         }
                     }
                 }
@@ -229,14 +250,20 @@ fun BackupRestoreScreen(
 
     // Import confirmation dialog
     if (showImportConfirm && pendingImportUri != null) {
+        val isReplace = importMode == BackupManager.ImportMode.REPLACE
         AlertDialog(
             onDismissRequest = {
                 showImportConfirm = false
                 pendingImportUri = null
             },
-            title = { Text("Restore Backup") },
+            title = { Text(if (isReplace) "Replace All Data?" else "Merge Backup?") },
             text = {
-                Text("This will import all data from the backup file. Existing exercises with matching names will be merged. Templates, workout logs, and schedule entries will be added alongside existing data.")
+                Text(
+                    if (isReplace)
+                        "This will WIPE all existing data — exercises, templates, workout history, schedule, saved routines, pushup logs — and replace it with the contents of the backup file. This cannot be undone. Continue?"
+                    else
+                        "This will add data from the backup to your existing data. Duplicates (same workout name + start time, same scheduled day + template, same pushup timestamp + count, same template name) will be skipped."
+                )
             },
             confirmButton = {
                 TextButton(
@@ -244,14 +271,16 @@ fun BackupRestoreScreen(
                         showImportConfirm = false
                         val uri = pendingImportUri!!
                         pendingImportUri = null
+                        val mode = importMode
                         isImporting = true
                         statusMessage = null
                         scope.launch {
-                            val result = backupManager.importFromJson(uri)
+                            val result = backupManager.importFromJson(uri, mode)
                             isImporting = false
                             result.fold(
                                 onSuccess = { summary ->
-                                    statusMessage = "Restored: ${summary.exercisesImported} exercises, ${summary.templatesImported} templates, ${summary.workoutLogsImported} workouts, ${summary.setLogsImported} sets, ${summary.pushupLogsImported} pushup logs"
+                                    val verb = if (mode == BackupManager.ImportMode.REPLACE) "Replaced" else "Merged"
+                                    statusMessage = "$verb: ${summary.exercisesImported} exercises, ${summary.templatesImported} templates, ${summary.workoutLogsImported} workouts, ${summary.setLogsImported} sets, ${summary.pushupLogsImported} pushup logs"
                                 },
                                 onFailure = { e ->
                                     statusMessage = "Import failed: ${e.message}"
@@ -259,7 +288,12 @@ fun BackupRestoreScreen(
                             )
                         }
                     }
-                ) { Text("Restore") }
+                ) {
+                    Text(
+                        if (isReplace) "Replace All" else "Merge",
+                        color = if (isReplace) MaterialTheme.colorScheme.error else Color.Unspecified
+                    )
+                }
             },
             dismissButton = {
                 TextButton(onClick = {

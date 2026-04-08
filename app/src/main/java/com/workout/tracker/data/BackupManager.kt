@@ -22,6 +22,24 @@ class BackupManager(
 ) {
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd_HHmmss", Locale.US)
 
+    /** How an import should reconcile with existing data. */
+    enum class ImportMode {
+        /** Wipe every table first, then import the backup verbatim. Safe default for "restore". */
+        REPLACE,
+        /** Keep existing data and add the backup on top, skipping rows that look like duplicates. */
+        MERGE
+    }
+
+    /** Wipes every table in the Room database. Use with confirmation in the UI. */
+    suspend fun wipeAllData(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            database.clearAllTables()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun exportToJson(): Result<File> = withContext(Dispatchers.IO) {
         try {
             val json = JSONObject()
@@ -105,19 +123,27 @@ class BackupManager(
         }
     }
 
-    suspend fun importFromJson(uri: Uri): Result<ImportSummary> = withContext(Dispatchers.IO) {
+    suspend fun importFromJson(
+        uri: Uri,
+        mode: ImportMode = ImportMode.REPLACE
+    ): Result<ImportSummary> = withContext(Dispatchers.IO) {
         try {
             val inputStream = context.contentResolver.openInputStream(uri)
                 ?: return@withContext Result.failure(Exception("Could not open file"))
             val jsonText = inputStream.bufferedReader().use { it.readText() }
             val json = JSONObject(jsonText)
 
+            // REPLACE mode: wipe everything first so the import lands on a clean DB.
+            if (mode == ImportMode.REPLACE) {
+                database.clearAllTables()
+            }
+
             var exerciseCount = 0
             var templateCount = 0
             var workoutLogCount = 0
             var setLogCount = 0
 
-            // Import exercises (use original IDs for FK references)
+            // --- Exercises (always deduped by name; unchanged) ---
             val oldToNewExerciseId = mutableMapOf<Long, Long>()
             if (json.has("exercises")) {
                 val exercises = jsonToExercises(json.getJSONArray("exercises"))
@@ -133,22 +159,39 @@ class BackupManager(
                 }
             }
 
-            // Import templates
+            // --- Templates ---
+            // In MERGE mode we dedup by name (templates with the same name are reused, not added).
+            // In REPLACE mode the DB is empty so this just inserts.
+            val existingTemplatesByName: Map<String, Long> =
+                if (mode == ImportMode.MERGE)
+                    database.workoutTemplateDao().getAllTemplatesList()
+                        .associate { it.name to it.id }
+                else emptyMap()
             val oldToNewTemplateId = mutableMapOf<Long, Long>()
+            val newlyCreatedTemplateIds = mutableSetOf<Long>()
             if (json.has("templates")) {
                 val templates = jsonToTemplates(json.getJSONArray("templates"))
                 for (t in templates) {
-                    val newId = database.workoutTemplateDao().insertTemplate(t.copy(id = 0))
-                    oldToNewTemplateId[t.id] = newId
-                    templateCount++
+                    val existingId = existingTemplatesByName[t.name]
+                    if (existingId != null) {
+                        oldToNewTemplateId[t.id] = existingId
+                    } else {
+                        val newId = database.workoutTemplateDao().insertTemplate(t.copy(id = 0))
+                        oldToNewTemplateId[t.id] = newId
+                        newlyCreatedTemplateIds.add(newId)
+                        templateCount++
+                    }
                 }
             }
 
-            // Import template exercises
+            // --- Template exercises ---
+            // Only insert template exercises for templates we just created. Pre-existing
+            // templates (matched by name) keep their existing exercise rows untouched.
             if (json.has("templateExercises")) {
                 val tes = jsonToTemplateExercises(json.getJSONArray("templateExercises"))
                 for (te in tes) {
                     val newTemplateId = oldToNewTemplateId[te.templateId] ?: continue
+                    if (mode == ImportMode.MERGE && newTemplateId !in newlyCreatedTemplateIds) continue
                     val newExerciseId = oldToNewExerciseId[te.exerciseId] ?: continue
                     database.workoutTemplateDao().insertTemplateExercise(
                         te.copy(id = 0, templateId = newTemplateId, exerciseId = newExerciseId)
@@ -156,11 +199,23 @@ class BackupManager(
                 }
             }
 
-            // Import workout logs
+            // --- Workout logs ---
+            // Dedup by (name + startTime) so importing the same backup twice doesn't
+            // double up your history.
+            val existingWorkoutKeys: Set<Pair<String, Long>> =
+                if (mode == ImportMode.MERGE)
+                    database.workoutLogDao().getAllWorkoutLogsList()
+                        .map { it.name to it.startTime }.toSet()
+                else emptySet()
             val oldToNewLogId = mutableMapOf<Long, Long>()
+            val skippedLogIds = mutableSetOf<Long>()
             if (json.has("workoutLogs")) {
                 val logs = jsonToWorkoutLogs(json.getJSONArray("workoutLogs"))
                 for (log in logs) {
+                    if (mode == ImportMode.MERGE && (log.name to log.startTime) in existingWorkoutKeys) {
+                        skippedLogIds.add(log.id)
+                        continue
+                    }
                     val newTemplateId = log.templateId?.let { oldToNewTemplateId[it] }
                     val newId = database.workoutLogDao().insertWorkoutLog(
                         log.copy(id = 0, templateId = newTemplateId)
@@ -170,11 +225,13 @@ class BackupManager(
                 }
             }
 
-            // Import exercise logs
+            // --- Exercise logs ---
+            // Skip any exercise log whose parent workout was deduped away.
             val oldToNewExLogId = mutableMapOf<Long, Long>()
             if (json.has("exerciseLogs")) {
                 val exLogs = jsonToExerciseLogs(json.getJSONArray("exerciseLogs"))
                 for (el in exLogs) {
+                    if (el.workoutLogId in skippedLogIds) continue
                     val newLogId = oldToNewLogId[el.workoutLogId] ?: continue
                     val newExId = oldToNewExerciseId[el.exerciseId] ?: continue
                     val newId = database.workoutLogDao().insertExerciseLog(
@@ -184,7 +241,7 @@ class BackupManager(
                 }
             }
 
-            // Import set logs
+            // --- Set logs ---
             if (json.has("setLogs")) {
                 val sets = jsonToSetLogs(json.getJSONArray("setLogs"))
                 for (s in sets) {
@@ -196,49 +253,87 @@ class BackupManager(
                 }
             }
 
-            // Import scheduled workouts
+            // --- Scheduled workouts ---
+            // Dedup by (templateId + scheduledDate + label). Two scheduled rows pointing at
+            // the same template on the same day are almost certainly a duplicate.
+            val existingScheduleKeys: Set<Triple<Long?, Long, String?>> =
+                if (mode == ImportMode.MERGE)
+                    database.scheduleDao().getAllScheduledWorkoutsList()
+                        .map { Triple(it.templateId, it.scheduledDate, it.label) }.toSet()
+                else emptySet()
             if (json.has("scheduledWorkouts")) {
                 val scheduled = jsonToScheduledWorkouts(json.getJSONArray("scheduledWorkouts"))
                 for (sw in scheduled) {
                     val newTemplateId = sw.templateId?.let { oldToNewTemplateId[it] }
+                    if (mode == ImportMode.MERGE &&
+                        Triple(newTemplateId, sw.scheduledDate, sw.label) in existingScheduleKeys
+                    ) continue
                     database.scheduleDao().insert(
                         sw.copy(id = 0, templateId = newTemplateId)
                     )
                 }
             }
 
-            // Import saved routines
+            // --- Saved routines ---
+            // Dedup by (name + createdAt) so re-imports don't duplicate routines.
+            val existingRoutineKeys: Map<Pair<String, Long>, Long> =
+                if (mode == ImportMode.MERGE)
+                    database.savedRoutineDao().getAllSavedRoutinesList()
+                        .associate { (it.name to it.createdAt) to it.id }
+                else emptyMap()
             val oldToNewRoutineId = mutableMapOf<Long, Long>()
             if (json.has("savedRoutines")) {
                 val routines = jsonToSavedRoutines(json.getJSONArray("savedRoutines"))
                 for (r in routines) {
-                    val newId = database.savedRoutineDao().insert(r.copy(id = 0))
-                    oldToNewRoutineId[r.id] = newId
+                    val existingId = existingRoutineKeys[r.name to r.createdAt]
+                    if (existingId != null) {
+                        oldToNewRoutineId[r.id] = existingId
+                    } else {
+                        val newId = database.savedRoutineDao().insert(r.copy(id = 0))
+                        oldToNewRoutineId[r.id] = newId
+                    }
                 }
             }
 
-            // Import routine usage history
+            // --- Routine usage history (dedup by routineId + startDate) ---
+            val existingUsageKeys: Set<Pair<Long, Long>> =
+                if (mode == ImportMode.MERGE) {
+                    val all = mutableSetOf<Pair<Long, Long>>()
+                    for (routineId in existingRoutineKeys.values + oldToNewRoutineId.values) {
+                        for (h in database.savedRoutineDao().getUsageHistoryList(routineId)) {
+                            all.add(h.savedRoutineId to h.startDate)
+                        }
+                    }
+                    all
+                } else emptySet()
             if (json.has("routineUsageHistory")) {
                 val history = jsonToRoutineUsageHistory(json.getJSONArray("routineUsageHistory"))
                 for (h in history) {
                     val newRoutineId = oldToNewRoutineId[h.savedRoutineId] ?: continue
+                    if (mode == ImportMode.MERGE && (newRoutineId to h.startDate) in existingUsageKeys) continue
                     database.savedRoutineDao().insertUsageHistory(
                         h.copy(id = 0, savedRoutineId = newRoutineId)
                     )
                 }
             }
 
-            // Import pushup logs
+            // --- Pushup logs (dedup by timestamp + count) ---
+            val existingPushupKeys: Set<Pair<Long, Int>> =
+                if (mode == ImportMode.MERGE)
+                    database.pushupLogDao().getAllPushupLogsList()
+                        .map { it.timestamp to it.count }.toSet()
+                else emptySet()
             var pushupCount = 0
             if (json.has("pushupLogs")) {
                 val logs = jsonToPushupLogs(json.getJSONArray("pushupLogs"))
                 for (log in logs) {
+                    if (mode == ImportMode.MERGE && (log.timestamp to log.count) in existingPushupKeys) continue
                     database.pushupLogDao().insert(log.copy(id = 0))
                     pushupCount++
                 }
             }
 
-            // Import feature usage logs
+            // --- Feature usage logs (always insert; analytics noise, dedup not worth it) ---
             var featureUsageCount = 0
             if (json.has("featureUsageLogs")) {
                 val logs = jsonToFeatureUsageLogs(json.getJSONArray("featureUsageLogs"))
