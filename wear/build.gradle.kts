@@ -8,7 +8,15 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.workout.tracker.wear"
+        // Must match the phone app's applicationId. Wear OS Data Layer tags
+        // every message with an "AppKey" = (package name + signing cert).
+        // The watch only delivers messages to an app whose AppKey matches
+        // the sender's, so if phone and watch use different applicationIds
+        // the watch silently drops incoming messages with
+        //   W/WearableService: Failed to deliver message to AppKey[...]
+        // Paired Wear apps are supposed to share the phone's package name —
+        // they live on separate devices, so there's no conflict.
+        applicationId = "com.workout.tracker"
         minSdk = 30
         targetSdk = 34
         versionCode = 1
