@@ -3,21 +3,35 @@ package com.workout.tracker.wear
 import android.app.Application
 import android.util.Log
 import com.google.android.gms.wearable.MessageClient
-import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.Wearable
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import org.json.JSONObject
 
 /**
  * Registers a runtime MessageClient listener as soon as the wear process
- * starts, so we don't depend solely on the manifest WearableListenerService
- * (which can be slow or unreliable to wake on some Wear OS builds).
+ * starts. This is the primary receive path — the manifest
+ * [WearDataService] is a secondary fallback.
+ *
+ * On Pixel Watch 3 (and other current Wear OS builds) the
+ * WearableListenerService binding is blocked by
+ * BIND_WEARABLE_LISTENER_SERVICE permission denial, so relying on it
+ * exclusively means messages silently drop. Runtime listeners are
+ * registered from inside the app's own process and don't need that
+ * permission to fire.
  */
 class WearApplication : Application() {
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val listener = MessageClient.OnMessageReceivedListener { event ->
         val payload = runCatching { String(event.data) }.getOrDefault("")
         Log.d(TAG, "Runtime listener: ${event.path} -> $payload")
-        handleMessage(event.path, payload)
+        WatchState.onAnyMessage(event.path)
+        handleMessage(event.path, payload, event.sourceNodeId)
     }
 
     override fun onCreate() {
@@ -25,7 +39,6 @@ class WearApplication : Application() {
         try {
             Wearable.getMessageClient(this).addListener(listener)
             Log.d(TAG, "MessageClient listener registered")
-            // Log local node id so we can verify the phone is sending to us
             Wearable.getNodeClient(this).localNode
                 .addOnSuccessListener { node ->
                     Log.d(TAG, "Local node id=${node.id} name=${node.displayName}")
@@ -38,7 +51,7 @@ class WearApplication : Application() {
         }
     }
 
-    private fun handleMessage(path: String, payload: String) {
+    private fun handleMessage(path: String, payload: String, sourceNodeId: String) {
         val json = runCatching { JSONObject(payload) }.getOrNull()
         when (path) {
             "/workout/start" -> WatchState.onWorkoutStart(
@@ -58,6 +71,17 @@ class WearApplication : Application() {
                 running = json?.optBoolean("running", false) ?: false
             )
             "/workout/end" -> WatchState.onWorkoutEnd()
+            "/workout/ping" -> {
+                // Diagnostic: reply with a pong straight back to the sender.
+                scope.launch {
+                    runCatching {
+                        Wearable.getMessageClient(this@WearApplication)
+                            .sendMessage(sourceNodeId, "/workout/pong", payload.toByteArray())
+                            .await()
+                        Log.d(TAG, "Sent pong to $sourceNodeId")
+                    }.onFailure { Log.w(TAG, "Pong send failed: ${it.message}") }
+                }
+            }
         }
     }
 

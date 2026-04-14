@@ -2,10 +2,14 @@ package com.workout.tracker
 
 import android.app.Application
 import android.util.Log
+import com.google.android.gms.wearable.MessageClient
+import com.google.android.gms.wearable.Wearable
 import com.workout.tracker.data.ExerciseSeedData
 import com.workout.tracker.data.JefitImporter
 import com.workout.tracker.data.WorkoutDatabase
 import com.workout.tracker.data.repository.WorkoutRepository
+import com.workout.tracker.watch.WatchDiagnostics
+import com.workout.tracker.watch.WatchEventBus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -26,8 +30,26 @@ class WorkoutApp : Application() {
         )
     }
 
+    private val wearMessageListener = MessageClient.OnMessageReceivedListener { event ->
+        Log.d("WorkoutApp", "Wear runtime listener: ${event.path}")
+        when (event.path) {
+            "/workout/log_set" -> WatchEventBus.emit(WatchEventBus.Event.LogSetRequested)
+            "/workout/pong" -> WatchDiagnostics.recordPong()
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
+
+        // Register a runtime MessageClient listener so wear->phone messages
+        // don't depend on the manifest WearableListenerService binding,
+        // which is blocked by permission denial on some Wear OS / GMS
+        // builds (BIND_WEARABLE_LISTENER_SERVICE).
+        try {
+            Wearable.getMessageClient(this).addListener(wearMessageListener)
+        } catch (e: Exception) {
+            Log.w("WorkoutApp", "Failed to register wear listener: ${e.message}")
+        }
 
         // Set up notifications
         com.workout.tracker.notification.WorkoutNotificationHelper.createNotificationChannel(this)
