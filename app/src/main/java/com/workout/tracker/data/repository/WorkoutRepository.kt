@@ -121,7 +121,13 @@ class WorkoutRepository(
 
     /**
      * Checks if a newly logged set is a personal record.
-     * Returns list of new PRs detected.
+     * Returns list of *new* PRs that should be celebrated. A PR only fires
+     * when the value is STRICTLY greater than the previous best — equaling
+     * your best is not a PR.
+     *
+     * If no PR rows exist yet for this exercise, we first seed baseline rows
+     * from the workout history so that "first set after install" is compared
+     * against prior work instead of falsely triggering a celebration.
      */
     suspend fun checkAndRecordPRs(
         exerciseId: Long,
@@ -132,82 +138,136 @@ class WorkoutRepository(
         if (personalRecordDao == null) return emptyList()
         if (reps == null || reps <= 0) return emptyList()
 
+        seedPRsFromHistoryIfNeeded(exerciseId)
+
         val newPRs = mutableListOf<PersonalRecord>()
         val now = System.currentTimeMillis()
 
-        // Check MAX_WEIGHT PR
+        // MAX_WEIGHT: strictly heavier than the previous best.
         if (weightLbs != null && weightLbs > 0) {
             val currentBest = personalRecordDao.getBestRecord(exerciseId, PRType.MAX_WEIGHT)
-            if (currentBest == null || weightLbs > currentBest.value) {
-                val pr = PersonalRecord(
-                    exerciseId = exerciseId,
-                    type = PRType.MAX_WEIGHT,
-                    value = weightLbs,
-                    reps = reps,
-                    weightLbs = weightLbs,
-                    achievedAt = now,
-                    workoutLogId = workoutLogId
-                )
-                personalRecordDao.insert(pr)
-                newPRs.add(pr)
+            val pr = PersonalRecord(
+                exerciseId = exerciseId, type = PRType.MAX_WEIGHT, value = weightLbs,
+                reps = reps, weightLbs = weightLbs, achievedAt = now, workoutLogId = workoutLogId
+            )
+            when {
+                currentBest == null -> personalRecordDao.insert(pr) // silent baseline
+                weightLbs > currentBest.value -> {
+                    personalRecordDao.insert(pr); newPRs.add(pr)
+                }
             }
         }
 
-        // Check MAX_VOLUME PR (single set: weight x reps)
+        // MAX_VOLUME (single set: weight x reps).
         if (weightLbs != null && weightLbs > 0) {
             val setVolume = weightLbs * reps
             val currentBest = personalRecordDao.getBestRecord(exerciseId, PRType.MAX_VOLUME)
-            if (currentBest == null || setVolume > currentBest.value) {
-                val pr = PersonalRecord(
-                    exerciseId = exerciseId,
-                    type = PRType.MAX_VOLUME,
-                    value = setVolume,
-                    reps = reps,
-                    weightLbs = weightLbs,
-                    achievedAt = now,
-                    workoutLogId = workoutLogId
-                )
-                personalRecordDao.insert(pr)
-                newPRs.add(pr)
+            val pr = PersonalRecord(
+                exerciseId = exerciseId, type = PRType.MAX_VOLUME, value = setVolume,
+                reps = reps, weightLbs = weightLbs, achievedAt = now, workoutLogId = workoutLogId
+            )
+            when {
+                currentBest == null -> personalRecordDao.insert(pr)
+                setVolume > currentBest.value -> {
+                    personalRecordDao.insert(pr); newPRs.add(pr)
+                }
             }
         }
 
-        // Check MAX_ESTIMATED_1RM PR
+        // MAX_ESTIMATED_1RM (Epley formula, only reliable for <= 12 reps).
         if (weightLbs != null && weightLbs > 0 && reps in 1..12) {
             val estimated1RM = OneRepMaxCalculator.estimate(weightLbs, reps)
             val currentBest = personalRecordDao.getBestRecord(exerciseId, PRType.MAX_ESTIMATED_1RM)
-            if (currentBest == null || estimated1RM > currentBest.value) {
-                val pr = PersonalRecord(
-                    exerciseId = exerciseId,
-                    type = PRType.MAX_ESTIMATED_1RM,
-                    value = estimated1RM,
-                    reps = reps,
-                    weightLbs = weightLbs,
-                    achievedAt = now,
-                    workoutLogId = workoutLogId
-                )
-                personalRecordDao.insert(pr)
-                newPRs.add(pr)
+            val pr = PersonalRecord(
+                exerciseId = exerciseId, type = PRType.MAX_ESTIMATED_1RM, value = estimated1RM,
+                reps = reps, weightLbs = weightLbs, achievedAt = now, workoutLogId = workoutLogId
+            )
+            when {
+                currentBest == null -> personalRecordDao.insert(pr)
+                estimated1RM > currentBest.value -> {
+                    personalRecordDao.insert(pr); newPRs.add(pr)
+                }
             }
         }
 
-        // Check MAX_REPS PR (bodyweight or at any weight)
+        // MAX_REPS (bodyweight or at any weight).
         val currentBestReps = personalRecordDao.getBestRecord(exerciseId, PRType.MAX_REPS)
-        if (currentBestReps == null || reps > currentBestReps.value) {
-            val pr = PersonalRecord(
-                exerciseId = exerciseId,
-                type = PRType.MAX_REPS,
-                value = reps.toDouble(),
-                reps = reps,
-                weightLbs = weightLbs,
-                achievedAt = now,
-                workoutLogId = workoutLogId
-            )
-            personalRecordDao.insert(pr)
-            newPRs.add(pr)
+        val repsPR = PersonalRecord(
+            exerciseId = exerciseId, type = PRType.MAX_REPS, value = reps.toDouble(),
+            reps = reps, weightLbs = weightLbs, achievedAt = now, workoutLogId = workoutLogId
+        )
+        when {
+            currentBestReps == null -> personalRecordDao.insert(repsPR)
+            reps > currentBestReps.value -> {
+                personalRecordDao.insert(repsPR); newPRs.add(repsPR)
+            }
         }
 
         return newPRs
+    }
+
+    /**
+     * If there are no PR rows for this exercise yet, compute the best set
+     * from all historical workout sets and insert baseline PR rows. This
+     * runs once per exercise — subsequent PR checks find the baseline and
+     * compare normally.
+     */
+    private suspend fun seedPRsFromHistoryIfNeeded(exerciseId: Long) {
+        val dao = personalRecordDao ?: return
+        if (dao.countForExercise(exerciseId) > 0) return
+
+        val history = workoutLogDao.getExerciseHistory(exerciseId, 1000)
+            .filter { !it.isWarmup && it.reps != null && it.reps > 0 }
+        if (history.isEmpty()) return
+
+        fun seed(type: PRType, value: Double, reps: Int?, weightLbs: Double?, achievedAt: Long) {
+            // Launched in a suspend context; direct call is fine.
+        }
+
+        // MAX_WEIGHT
+        history.filter { (it.weightLbs ?: 0.0) > 0 }
+            .maxByOrNull { it.weightLbs!! }
+            ?.let { e ->
+                dao.insert(PersonalRecord(
+                    exerciseId = exerciseId, type = PRType.MAX_WEIGHT,
+                    value = e.weightLbs!!, reps = e.reps, weightLbs = e.weightLbs,
+                    achievedAt = e.startTime, workoutLogId = null
+                ))
+            }
+
+        // MAX_VOLUME (single set)
+        history.filter { (it.weightLbs ?: 0.0) > 0 }
+            .maxByOrNull { (it.weightLbs ?: 0.0) * (it.reps ?: 0) }
+            ?.let { e ->
+                val v = e.weightLbs!! * e.reps!!
+                dao.insert(PersonalRecord(
+                    exerciseId = exerciseId, type = PRType.MAX_VOLUME,
+                    value = v, reps = e.reps, weightLbs = e.weightLbs,
+                    achievedAt = e.startTime, workoutLogId = null
+                ))
+            }
+
+        // MAX_ESTIMATED_1RM
+        history.filter { (it.weightLbs ?: 0.0) > 0 && (it.reps ?: 0) in 1..12 }
+            .maxByOrNull { OneRepMaxCalculator.estimate(it.weightLbs!!, it.reps!!) }
+            ?.let { e ->
+                val v = OneRepMaxCalculator.estimate(e.weightLbs!!, e.reps!!)
+                dao.insert(PersonalRecord(
+                    exerciseId = exerciseId, type = PRType.MAX_ESTIMATED_1RM,
+                    value = v, reps = e.reps, weightLbs = e.weightLbs,
+                    achievedAt = e.startTime, workoutLogId = null
+                ))
+            }
+
+        // MAX_REPS
+        history.maxByOrNull { it.reps ?: 0 }
+            ?.let { e ->
+                dao.insert(PersonalRecord(
+                    exerciseId = exerciseId, type = PRType.MAX_REPS,
+                    value = e.reps!!.toDouble(), reps = e.reps, weightLbs = e.weightLbs,
+                    achievedAt = e.startTime, workoutLogId = null
+                ))
+            }
     }
 
     // Progressive Overload Suggestion

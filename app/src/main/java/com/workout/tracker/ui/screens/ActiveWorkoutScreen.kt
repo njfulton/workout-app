@@ -2,6 +2,7 @@ package com.workout.tracker.ui.screens
 
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -9,6 +10,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -191,6 +195,19 @@ fun ActiveWorkoutScreen(
                         OutlinedButton(onClick = { workoutViewModel.skipRestTimer() }) {
                             Text("Skip", style = MaterialTheme.typography.titleMedium)
                         }
+
+                        // Show the up-next exercise when the rest follows the last set
+                        // of the previous group. We detect that by the auto-advanced
+                        // currentGroup having no non-warmup sets logged yet.
+                        currentGroup?.let { group ->
+                            val groupNotStartedYet = group.exercises.all { ex ->
+                                ex.sets.none { !it.isWarmup }
+                            }
+                            if (groupNotStartedYet) {
+                                Spacer(Modifier.height(32.dp))
+                                UpNextCard(group)
+                            }
+                        }
                     }
                 }
             }
@@ -242,7 +259,11 @@ fun ActiveWorkoutScreen(
                             onMarkDone = { workoutViewModel.markExerciseDone(currentGroup.exercises.first().exerciseLogId) },
                             defaultRestSeconds = currentGroup.exercises.first().restSeconds,
                             onRestSecondsChanged = { workoutViewModel.updateExerciseRestSeconds(currentGroup.exercises.first().exerciseLogId, it) },
-                            onNoteChanged = { workoutViewModel.updateExerciseNote(currentGroup.exercises.first().exerciseLogId, it) }
+                            onNoteChanged = { workoutViewModel.updateExerciseNote(currentGroup.exercises.first().exerciseLogId, it) },
+                            onOpenProgress = {
+                                val ex = currentGroup.exercises.first().exercise
+                                navController.navigate(Screen.ExerciseProgress.createRoute(ex.id))
+                            }
                         )
                     }
                     // Up next preview
@@ -427,6 +448,167 @@ fun ActiveWorkoutScreen(
 /**
  * Resolves the pre-fill weight: last set in this session, or last weight from history.
  */
+/**
+ * Compact progress view shown inline on the exercise card during a workout.
+ * Left side: sparkline of estimated 1RM across the most recent sessions.
+ * Right side: the last 3 sessions written out as "Apr 5: 185×8, 185×8".
+ * Whole card is tappable to open the full ExerciseProgress screen.
+ */
+@Composable
+private fun MiniProgressWidget(
+    history: List<com.workout.tracker.data.dao.ExerciseHistoryEntry>,
+    onClick: (() -> Unit)? = null
+) {
+    data class Session(
+        val startTime: Long,
+        val bestWeight: Double?,
+        val bestReps: Int?,
+        val estimated1RM: Double?,
+        val setsSummary: String
+    )
+
+    // Group non-warmup sets by session startTime and compute per-session bests.
+    val sessions: List<Session> = remember(history) {
+        history.filter { !it.isWarmup && it.reps != null && it.reps > 0 }
+            .groupBy { it.startTime }
+            .map { (ts, sets) ->
+                val sorted = sets.sortedBy { it.setNumber }
+                val bestW = sorted.mapNotNull { it.weightLbs }.filter { it > 0 }.maxOrNull()
+                val bestR = sorted.maxOf { it.reps!! }
+                val best1RM = sorted.filter { (it.weightLbs ?: 0.0) > 0 && it.reps!! in 1..12 }
+                    .maxOfOrNull {
+                        com.workout.tracker.util.OneRepMaxCalculator.estimate(it.weightLbs!!, it.reps!!)
+                    }
+                val summary = sorted.take(3).joinToString(", ") { s ->
+                    val w = s.weightLbs
+                    if (w != null && w > 0) "${w.toInt()}×${s.reps}" else "${s.reps}"
+                }
+                Session(ts, bestW, bestR, best1RM, summary)
+            }
+            .sortedBy { it.startTime }
+    }
+
+    if (sessions.isEmpty()) return
+
+    val recentSessions = sessions.takeLast(15)
+    val lastThree = sessions.takeLast(3).reversed()
+    val dateFormat = remember { java.text.SimpleDateFormat("MMM d", java.util.Locale.US) }
+    val lineColor = MaterialTheme.colorScheme.primary
+    val pointColor = MaterialTheme.colorScheme.primary
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Sparkline
+        Canvas(
+            modifier = Modifier
+                .width(100.dp)
+                .height(40.dp)
+        ) {
+            val points = recentSessions.mapNotNull { it.estimated1RM }
+                .takeIf { it.isNotEmpty() } ?: return@Canvas
+            val minV = points.min()
+            val maxV = points.max()
+            val range = (maxV - minV).takeIf { it > 0.0 } ?: 1.0
+            val w = size.width
+            val h = size.height
+            val stepX = if (points.size > 1) w / (points.size - 1) else 0f
+            val path = Path()
+            points.forEachIndexed { i, v ->
+                val x = i * stepX
+                val y = h - ((v - minV) / range * h).toFloat()
+                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            drawPath(path, color = lineColor, style = Stroke(width = 3f))
+            // Dot at the latest point
+            val lastX = (points.size - 1) * stepX
+            val lastY = h - ((points.last() - minV) / range * h).toFloat()
+            drawCircle(color = pointColor, radius = 4f, center = Offset(lastX, lastY))
+        }
+        Spacer(Modifier.width(12.dp))
+        // Last 3 sessions as text
+        Column(modifier = Modifier.weight(1f)) {
+            lastThree.forEach { s ->
+                Row {
+                    Text(
+                        dateFormat.format(java.util.Date(s.startTime)),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(52.dp)
+                    )
+                    Text(
+                        s.setsSummary,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Shown below the rest countdown when the rest follows the last set of an
+ * exercise. Tells the user what's coming next so they can mentally prep.
+ */
+@Composable
+private fun UpNextCard(group: ExerciseGroup) {
+    Card(
+        modifier = Modifier.fillMaxWidth(fraction = 0.9f),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "UP NEXT",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                group.label,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(4.dp))
+            group.exercises.forEach { ex ->
+                val sets = ex.targetSets
+                val reps = ex.targetReps
+                val weight = getPreFillWeight(ex)
+                val detail = buildString {
+                    if (sets != null && reps != null) append("$sets × $reps")
+                    else if (sets != null) append("$sets sets")
+                    if (weight.isNotBlank()) {
+                        if (isNotEmpty()) append(" @ ")
+                        append("${weight} lb")
+                    }
+                }
+                if (detail.isNotBlank()) {
+                    Text(
+                        if (group.isSuperset) "${ex.exercise.name}: $detail" else detail,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
 private fun getPreFillWeight(activeExercise: ActiveExercise): String {
     // First: last set logged in this session
     val lastSessionWeight = activeExercise.sets.lastOrNull { !it.isWarmup }?.weightLbs
@@ -458,7 +640,8 @@ fun FocusedExerciseCard(
     onMarkDone: () -> Unit,
     defaultRestSeconds: Int = 120,
     onRestSecondsChanged: ((Int) -> Unit)? = null,
-    onNoteChanged: ((String) -> Unit)? = null
+    onNoteChanged: ((String) -> Unit)? = null,
+    onOpenProgress: (() -> Unit)? = null
 ) {
     val nextSetNumber = activeExercise.sets.size + 1
     val targetSets = activeExercise.targetSets
@@ -497,22 +680,14 @@ fun FocusedExerciseCard(
                 Text("${activeExercise.sets.size} sets logged", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            // Last workout summary
+            // Compact progress widget: sparkline of estimated 1RM + last 3 sessions.
+            // Tapping opens the full ExerciseProgress screen.
             if (activeExercise.history.isNotEmpty()) {
-                val lastWorkoutTime = activeExercise.history.first().startTime
-                val lastSets = activeExercise.history.filter { it.startTime == lastWorkoutTime }
-                val dateFormat = java.text.SimpleDateFormat("MMM d", java.util.Locale.US)
-                val dateStr = dateFormat.format(java.util.Date(lastWorkoutTime))
-                val lastWeight = lastSets.mapNotNull { it.weightLbs }.maxOrNull()
-                val repsStr = lastSets.mapNotNull { it.reps }.joinToString(", ")
-                val summary = if (lastWeight != null && lastWeight > 0) {
-                    "Last ($dateStr): ${lastWeight.toInt()}lb x $repsStr"
-                } else if (repsStr.isNotEmpty()) {
-                    "Last ($dateStr): $repsStr reps"
-                } else null
-                if (summary != null) {
-                    Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                }
+                Spacer(Modifier.height(6.dp))
+                MiniProgressWidget(
+                    history = activeExercise.history,
+                    onClick = onOpenProgress
+                )
             }
 
             // Overload suggestion
