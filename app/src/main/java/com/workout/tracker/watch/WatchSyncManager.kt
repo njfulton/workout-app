@@ -24,6 +24,12 @@ object WatchSyncManager {
     const val PATH_WORKOUT_UPDATE = "/workout/update"
     const val PATH_WORKOUT_TIMER = "/workout/timer"
     const val PATH_WORKOUT_END = "/workout/end"
+    const val PATH_PING = "/workout/ping"
+
+    /** Fire-and-forget ping used by the diagnostics screen. */
+    suspend fun sendPing(context: Context) {
+        sendMessage(context, PATH_PING, System.currentTimeMillis().toString())
+    }
 
     suspend fun sendWorkoutStart(
         context: Context,
@@ -76,19 +82,26 @@ object WatchSyncManager {
                 val nodeIds = findTargetNodeIds(context)
                 if (nodeIds.isEmpty()) {
                     Log.w(TAG, "No reachable watch nodes for $path")
+                    WatchDiagnostics.recordSend(path, success = false, targetCount = 0, error = "no reachable nodes")
                     return@withContext
                 }
+                var anySuccess = false
+                var lastError: String? = null
                 for (nodeId in nodeIds) {
                     try {
                         messageClient.sendMessage(nodeId, path, data.toByteArray()).await()
                         Log.d(TAG, "Sent $path to $nodeId")
+                        anySuccess = true
                     } catch (e: Exception) {
                         Log.w(TAG, "sendMessage failed for $nodeId: ${e.message}")
+                        lastError = e.message ?: e::class.java.simpleName
                     }
                 }
+                WatchDiagnostics.recordSend(path, success = anySuccess, targetCount = nodeIds.size, error = lastError)
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to send $path to watch: ${e.message}")
+            WatchDiagnostics.recordSend(path, success = false, targetCount = 0, error = e.message)
         }
     }
 

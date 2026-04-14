@@ -81,6 +81,10 @@ fun UtilitiesScreen(
         UtilityItem(Icons.Default.HealthAndSafety, "Health Connect", "Sync with Google Fit", "health_connect") {
             workoutViewModel.logFeatureUsage("health_connect")
             navController.navigate(Screen.HealthConnect.route)
+        },
+        UtilityItem(Icons.Default.Watch, "Watch connection", "Diagnose Wear OS pairing", "watch_diagnostics") {
+            workoutViewModel.logFeatureUsage("watch_diagnostics")
+            navController.navigate(Screen.WatchDiagnostics.route)
         }
     )
 

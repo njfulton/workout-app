@@ -15,7 +15,10 @@ data class WatchWorkoutState(
     val lastSet: String = "",
     val restInitialSeconds: Int = 0,
     val restRunning: Boolean = false,
-    val restEndTimeMillis: Long = 0L
+    val restEndTimeMillis: Long = 0L,
+    // Diagnostic: most recent message path received from the phone + its ts
+    val lastReceivedPath: String = "",
+    val lastReceivedTs: Long = 0L
 )
 
 object WatchState {
@@ -72,6 +75,18 @@ object WatchState {
     }
 
     fun onWorkoutEnd() {
-        _state.value = WatchWorkoutState()
+        // Preserve diagnostic trail so user can still see last-received after a workout ends
+        val prev = _state.value
+        _state.value = WatchWorkoutState(
+            lastReceivedPath = prev.lastReceivedPath,
+            lastReceivedTs = prev.lastReceivedTs
+        )
+    }
+
+    fun onAnyMessage(path: String) {
+        _state.value = _state.value.copy(
+            lastReceivedPath = path,
+            lastReceivedTs = System.currentTimeMillis()
+        )
     }
 }

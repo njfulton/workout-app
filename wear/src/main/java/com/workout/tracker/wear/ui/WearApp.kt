@@ -38,13 +38,13 @@ fun WearApp() {
         when {
             state.restRunning -> RestTimerScreen(state)
             state.isActive -> ActiveWorkoutScreen(state, context)
-            else -> IdleScreen()
+            else -> IdleScreen(state)
         }
     }
 }
 
 @Composable
-private fun IdleScreen() {
+private fun IdleScreen(state: WatchWorkoutState) {
     Scaffold(timeText = { TimeText() }) {
         Box(
             modifier = Modifier.fillMaxSize().background(Color.Black),
@@ -52,7 +52,8 @@ private fun IdleScreen() {
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(horizontal = 16.dp)
             ) {
                 Text(
                     "Workout\nTracker",
@@ -68,6 +69,25 @@ private fun IdleScreen() {
                     fontSize = 12.sp,
                     color = Color.Gray
                 )
+                // Diagnostic: show last-received message so user can verify
+                // the phone→watch link without ADB.
+                if (state.lastReceivedTs > 0L) {
+                    Spacer(Modifier.height(12.dp))
+                    val ago = ((System.currentTimeMillis() - state.lastReceivedTs) / 1000).coerceAtLeast(0)
+                    Text(
+                        "last msg: ${state.lastReceivedPath}",
+                        textAlign = TextAlign.Center,
+                        fontSize = 9.sp,
+                        color = Color.DarkGray,
+                        maxLines = 1
+                    )
+                    Text(
+                        "${ago}s ago",
+                        textAlign = TextAlign.Center,
+                        fontSize = 9.sp,
+                        color = Color.DarkGray
+                    )
+                }
             }
         }
     }

@@ -42,6 +42,7 @@ sealed class Screen(val route: String) {
     object PlateCalculator : Screen("plate_calculator")
     object HealthConnect : Screen("health_connect")
     object RoutineOverview : Screen("routine_overview")
+    object WatchDiagnostics : Screen("watch_diagnostics")
 }
 
 @Composable
@@ -218,6 +219,9 @@ fun WorkoutNavHost(navController: NavHostController) {
         }
         composable(Screen.RoutineOverview.route) {
             RoutineOverviewScreen(navController = navController, templateViewModel = templateViewModel)
+        }
+        composable(Screen.WatchDiagnostics.route) {
+            WatchDiagnosticsScreen(navController = navController)
         }
     }
 }

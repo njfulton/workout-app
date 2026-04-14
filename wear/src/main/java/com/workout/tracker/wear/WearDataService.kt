@@ -3,7 +3,12 @@ package com.workout.tracker.wear
 import android.util.Log
 import com.google.android.gms.wearable.DataEventBuffer
 import com.google.android.gms.wearable.MessageEvent
+import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.wearable.WearableListenerService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import org.json.JSONObject
 
 /**
@@ -18,6 +23,8 @@ class WearDataService : WearableListenerService() {
         const val PATH_WORKOUT_UPDATE = "/workout/update"
         const val PATH_WORKOUT_END = "/workout/end"
         const val PATH_TIMER_CONTROL = "/workout/timer"
+        const val PATH_PING = "/workout/ping"
+        const val PATH_PONG = "/workout/pong"
     }
 
     override fun onDataChanged(dataEvents: DataEventBuffer) {
@@ -28,6 +35,7 @@ class WearDataService : WearableListenerService() {
         super.onMessageReceived(messageEvent)
         val payload = runCatching { String(messageEvent.data) }.getOrDefault("")
         Log.d(TAG, "Message received: ${messageEvent.path} -> $payload")
+        WatchState.onAnyMessage(messageEvent.path)
 
         when (messageEvent.path) {
             PATH_WORKOUT_START -> {
@@ -57,6 +65,18 @@ class WearDataService : WearableListenerService() {
             }
             PATH_WORKOUT_END -> {
                 WatchState.onWorkoutEnd()
+            }
+            PATH_PING -> {
+                // Round-trip test: reply immediately with a pong to the sender.
+                val senderId = messageEvent.sourceNodeId
+                CoroutineScope(Dispatchers.IO).launch {
+                    runCatching {
+                        Wearable.getMessageClient(applicationContext)
+                            .sendMessage(senderId, PATH_PONG, payload.toByteArray())
+                            .await()
+                        Log.d(TAG, "Sent pong to $senderId")
+                    }.onFailure { Log.w(TAG, "Pong send failed: ${it.message}") }
+                }
             }
         }
     }
