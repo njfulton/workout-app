@@ -9,8 +9,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.lifecycle.lifecycleScope
 import androidx.wear.ambient.AmbientLifecycleObserver
 import com.workout.tracker.wear.ui.WearApp
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 /**
  * Signals whether the watch is currently in ambient (low-power) mode.
@@ -44,14 +48,31 @@ class WearMainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Keeps the screen on while the app is the foreground activity.
-        // Combined with AmbientLifecycleObserver, this means:
-        //   - Active use: screen stays fully bright
-        //   - Hand down / timeout: enters ambient (dim) instead of being
-        //     replaced by the watch face
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
         lifecycle.addObserver(ambientObserver)
+
+        // Drive both screen-on and activity lifecycle from the watch state:
+        //  - While a workout or rest timer is active, keep the screen on
+        //    so you can read the display without tapping the wrist.
+        //  - When the active session ends (transition active->idle), close
+        //    the activity so the user returns to the watch face instead of
+        //    being left on the idle "Start a workout on your phone" screen.
+        //  - If the user opens the app manually without an active workout,
+        //    nothing changes — screen dims normally, no auto-close.
+        lifecycleScope.launch {
+            var wasActive = false
+            WatchState.state
+                .map { it.isActive || it.restRunning }
+                .distinctUntilChanged()
+                .collect { active ->
+                    if (active) {
+                        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    } else {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        if (wasActive) finish()
+                    }
+                    wasActive = active
+                }
+        }
 
         setContent {
             CompositionLocalProvider(LocalAmbientState provides ambient) {
