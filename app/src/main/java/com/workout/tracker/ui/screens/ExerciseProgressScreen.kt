@@ -297,7 +297,7 @@ private fun SessionRow(session: SessionDetail) {
 
     val summary = when {
         working.all { (it.weightLbs ?: 0.0) > 0 } && working.isNotEmpty() ->
-            working.joinToString(", ") { "${it.weightLbs!!.toInt()}×${it.reps}" }
+            working.joinToString(", ") { "${it.reps}×${it.weightLbs!!.toInt()}" }
         working.isNotEmpty() ->
             "${working.size} set${if (working.size == 1) "" else "s"}, " +
                 working.joinToString(", ") { "${it.reps}" } + " reps"

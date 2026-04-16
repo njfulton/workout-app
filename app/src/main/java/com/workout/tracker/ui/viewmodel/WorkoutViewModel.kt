@@ -637,11 +637,13 @@ class WorkoutViewModel(
         viewModelScope.launch {
             _exerciseProgress.value = repository.getExerciseProgressData(exerciseId)
 
-            val history = repository.getExerciseHistory(exerciseId, 500)
+            // Use the full history query so imported JEFIT sessions and any
+            // workouts from prior routines show up alongside current ones.
+            val history = repository.getFullExerciseHistory(exerciseId, 2000)
             _exerciseHistory.value = history
 
             val best1RM = history
-                .filter { it.weightLbs != null && it.weightLbs > 0 && it.reps != null && it.reps in 1..12 }
+                .filter { !it.isWarmup && it.weightLbs != null && it.weightLbs > 0 && it.reps != null && it.reps in 1..12 }
                 .maxOfOrNull { OneRepMaxCalculator.estimate(it.weightLbs!!, it.reps!!) }
             _estimated1RM.value = best1RM
         }

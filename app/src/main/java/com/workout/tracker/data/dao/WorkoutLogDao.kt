@@ -119,6 +119,24 @@ interface WorkoutLogDao {
     """)
     suspend fun getExerciseHistory(exerciseId: Long, limit: Int = 50): List<ExerciseHistoryEntry>
 
+    /**
+     * Full unfiltered history for an exercise. Unlike [getExerciseHistory],
+     * this does NOT drop warmup sets and does NOT require workouts to be
+     * finished (endTime IS NOT NULL) — so imported JEFIT history (where
+     * endTime may be missing) and any pre-routine workouts still show up.
+     * Used by the ExerciseProgress detailed history list.
+     */
+    @Query("""
+        SELECT w.startTime, sl.setNumber, sl.reps, sl.weightLbs, sl.isWarmup
+        FROM set_logs sl
+        INNER JOIN exercise_logs el ON sl.exerciseLogId = el.id
+        INNER JOIN workout_logs w ON el.workoutLogId = w.id
+        WHERE el.exerciseId = :exerciseId
+        ORDER BY w.startTime DESC, sl.setNumber ASC
+        LIMIT :limit
+    """)
+    suspend fun getFullExerciseHistory(exerciseId: Long, limit: Int = 1000): List<ExerciseHistoryEntry>
+
     @Query("""
         SELECT w.id as workoutId, w.name as workoutName, w.workoutType, w.startTime, w.endTime,
                e.name as exerciseName, el.orderIndex,

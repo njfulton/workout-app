@@ -484,7 +484,7 @@ private fun MiniProgressWidget(
                     }
                 val summary = sorted.take(3).joinToString(", ") { s ->
                     val w = s.weightLbs
-                    if (w != null && w > 0) "${w.toInt()}×${s.reps}" else "${s.reps}"
+                    if (w != null && w > 0) "${s.reps}×${w.toInt()}" else "${s.reps}"
                 }
                 Session(ts, bestW, bestR, best1RM, summary)
             }
