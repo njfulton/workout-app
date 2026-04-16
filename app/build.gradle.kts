@@ -67,6 +67,9 @@ dependencies {
     // Wearable Data Layer API (for watch communication)
     implementation("com.google.android.gms:play-services-wearable:18.1.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+    // RemoteActivityHelper — lets the phone launch the watch app remotely
+    // when a workout starts, so the user doesn't have to open it by hand.
+    implementation("androidx.wear:wear-remote-interactions:1.0.0")
 
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")
