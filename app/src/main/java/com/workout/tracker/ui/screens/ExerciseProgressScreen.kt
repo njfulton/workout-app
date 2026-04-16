@@ -195,13 +195,16 @@ fun ExerciseProgressScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                     Spacer(Modifier.height(8.dp))
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        ChartMetric.values().forEachIndexed { index, metric ->
-                            SegmentedButton(
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        ChartMetric.values().forEach { metric ->
+                            FilterChip(
                                 selected = selectedMetric == metric,
                                 onClick = { selectedMetric = metric },
-                                shape = SegmentedButtonDefaults.itemShape(index, ChartMetric.values().size),
-                                label = { Text(metric.label, style = MaterialTheme.typography.labelMedium) }
+                                label = { Text(metric.label, style = MaterialTheme.typography.labelMedium) },
+                                modifier = Modifier.weight(1f)
                             )
                         }
                     }
