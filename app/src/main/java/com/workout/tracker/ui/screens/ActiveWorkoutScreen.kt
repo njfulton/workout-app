@@ -245,6 +245,9 @@ fun ActiveWorkoutScreen(
                             },
                             onNoteChanged = { exerciseLogId, note ->
                                 workoutViewModel.updateExerciseNote(exerciseLogId, note)
+                            },
+                            onOpenProgress = { exerciseId ->
+                                navController.navigate(Screen.ExerciseProgress.createRoute(exerciseId))
                             }
                         )
                     } else {
@@ -880,7 +883,8 @@ fun FocusedSupersetCard(
     onMarkDone: (Long) -> Unit,
     defaultRestSeconds: Int = 120,
     onRestSecondsChanged: ((Int) -> Unit)? = null,
-    onNoteChanged: ((Long, String) -> Unit)? = null
+    onNoteChanged: ((Long, String) -> Unit)? = null,
+    onOpenProgress: ((Long) -> Unit)? = null
 ) {
     var activeTab by remember { mutableStateOf(0) }
     var currentRestSeconds by remember { mutableStateOf(defaultRestSeconds) }
@@ -935,23 +939,17 @@ fun FocusedSupersetCard(
                     )
                 }
 
-                // Last workout summary
+                // Compact progress widget for this tab's exercise. Tappable
+                // to open the full ExerciseProgress screen.
                 if (currentExercise.history.isNotEmpty()) {
-                    val lastWorkoutTime = currentExercise.history.first().startTime
-                    val lastSets = currentExercise.history.filter { it.startTime == lastWorkoutTime }
-                    val dateFormat = java.text.SimpleDateFormat("MMM d", java.util.Locale.US)
-                    val dateStr = dateFormat.format(java.util.Date(lastWorkoutTime))
-                    val lastWeight = lastSets.mapNotNull { it.weightLbs }.maxOrNull()
-                    val repsStr = lastSets.mapNotNull { it.reps }.joinToString(", ")
-                    val summary = if (lastWeight != null && lastWeight > 0) {
-                        "Last ($dateStr): ${lastWeight.toInt()}lb x $repsStr"
-                    } else if (repsStr.isNotEmpty()) {
-                        "Last ($dateStr): $repsStr reps"
-                    } else null
-                    if (summary != null) {
-                        Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.height(4.dp))
-                    }
+                    Spacer(Modifier.height(4.dp))
+                    MiniProgressWidget(
+                        history = currentExercise.history,
+                        onClick = onOpenProgress?.let { cb ->
+                            { cb(currentExercise.exercise.id) }
+                        }
+                    )
+                    Spacer(Modifier.height(4.dp))
                 }
 
                 // Overload suggestion

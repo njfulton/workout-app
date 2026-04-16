@@ -627,13 +627,19 @@ class WorkoutViewModel(
     private val _estimated1RM = MutableStateFlow<Double?>(null)
     val estimated1RM: StateFlow<Double?> = _estimated1RM
 
+    // Raw set-by-set history for the exercise, used by the ExerciseProgress
+    // screen's detailed session log.
+    private val _exerciseHistory = MutableStateFlow<List<com.workout.tracker.data.dao.ExerciseHistoryEntry>>(emptyList())
+    val exerciseHistory: StateFlow<List<com.workout.tracker.data.dao.ExerciseHistoryEntry>> = _exerciseHistory
+
     fun loadExerciseProgress(exerciseId: Long, exerciseName: String) {
         _progressExerciseName.value = exerciseName
         viewModelScope.launch {
             _exerciseProgress.value = repository.getExerciseProgressData(exerciseId)
 
-            // Load exercise history for 1RM calculation
-            val history = repository.getExerciseHistory(exerciseId, 100)
+            val history = repository.getExerciseHistory(exerciseId, 500)
+            _exerciseHistory.value = history
+
             val best1RM = history
                 .filter { it.weightLbs != null && it.weightLbs > 0 && it.reps != null && it.reps in 1..12 }
                 .maxOfOrNull { OneRepMaxCalculator.estimate(it.weightLbs!!, it.reps!!) }
@@ -643,6 +649,7 @@ class WorkoutViewModel(
 
     fun clearExerciseProgress() {
         _exerciseProgress.value = emptyList()
+        _exerciseHistory.value = emptyList()
         _progressExerciseName.value = ""
         _estimated1RM.value = null
         _exerciseRecords.value = emptyList()

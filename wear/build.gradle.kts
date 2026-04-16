@@ -46,6 +46,9 @@ android {
 dependencies {
     // Wear OS
     implementation("com.google.android.gms:play-services-wearable:18.1.0")
+    // Ambient lifecycle observer so the activity stays visible when the watch
+    // screen would otherwise time out back to the watch face.
+    implementation("androidx.wear:wear:1.3.0")
 
     // Compose for Wear OS
     implementation("androidx.wear.compose:compose-material:1.3.0")
