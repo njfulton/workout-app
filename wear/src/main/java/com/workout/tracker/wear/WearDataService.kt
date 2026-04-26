@@ -44,7 +44,9 @@ class WearDataService : WearableListenerService() {
                     name = json?.optString("name").orEmpty(),
                     exercise = json?.optString("exercise").orEmpty(),
                     setsDone = json?.optInt("setsDone", 0) ?: 0,
-                    totalSets = json?.optInt("totalSets", 0) ?: 0
+                    totalSets = json?.optInt("totalSets", 0) ?: 0,
+                    targetWeight = json?.optDouble("targetWeight")?.takeIf { !it.isNaN() },
+                    targetReps = json?.optInt("targetReps", 0)?.takeIf { it > 0 }
                 )
             }
             PATH_WORKOUT_UPDATE -> {
@@ -53,7 +55,9 @@ class WearDataService : WearableListenerService() {
                     exercise = json?.optString("exercise").orEmpty(),
                     setsDone = json?.optInt("setsDone", 0) ?: 0,
                     totalSets = json?.optInt("totalSets", 0) ?: 0,
-                    lastSet = json?.optString("lastSet").orEmpty()
+                    lastSet = json?.optString("lastSet").orEmpty(),
+                    targetWeight = json?.optDouble("targetWeight")?.takeIf { !it.isNaN() },
+                    targetReps = json?.optInt("targetReps", 0)?.takeIf { it > 0 }
                 )
             }
             PATH_TIMER_CONTROL -> {

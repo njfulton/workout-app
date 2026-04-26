@@ -58,13 +58,17 @@ class WearApplication : Application() {
                 name = json?.optString("name").orEmpty(),
                 exercise = json?.optString("exercise").orEmpty(),
                 setsDone = json?.optInt("setsDone", 0) ?: 0,
-                totalSets = json?.optInt("totalSets", 0) ?: 0
+                totalSets = json?.optInt("totalSets", 0) ?: 0,
+                targetWeight = json?.optDouble("targetWeight")?.takeIf { !it.isNaN() },
+                targetReps = json?.optInt("targetReps", 0)?.takeIf { it > 0 }
             )
             "/workout/update" -> WatchState.onWorkoutUpdate(
                 exercise = json?.optString("exercise").orEmpty(),
                 setsDone = json?.optInt("setsDone", 0) ?: 0,
                 totalSets = json?.optInt("totalSets", 0) ?: 0,
-                lastSet = json?.optString("lastSet").orEmpty()
+                lastSet = json?.optString("lastSet").orEmpty(),
+                targetWeight = json?.optDouble("targetWeight")?.takeIf { !it.isNaN() },
+                targetReps = json?.optInt("targetReps", 0)?.takeIf { it > 0 }
             )
             "/workout/timer" -> WatchState.onRestTimer(
                 seconds = json?.optInt("seconds", 0) ?: 0,

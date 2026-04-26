@@ -16,7 +16,17 @@ object WatchEventBus {
     private val _events = MutableSharedFlow<Event>(extraBufferCapacity = 16)
     val events: SharedFlow<Event> = _events
 
+    // Both the manifest WearableListenerService and the runtime
+    // MessageClient listener fire for the same incoming message,
+    // so deduplicate within a short window.
+    private var lastLogSetTs = 0L
+
     fun emit(event: Event) {
+        if (event is Event.LogSetRequested) {
+            val now = System.currentTimeMillis()
+            if (now - lastLogSetTs < 1000) return
+            lastLogSetTs = now
+        }
         _events.tryEmit(event)
     }
 }

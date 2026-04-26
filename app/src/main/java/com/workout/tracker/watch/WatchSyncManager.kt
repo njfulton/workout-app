@@ -44,13 +44,17 @@ object WatchSyncManager {
         workoutName: String,
         exerciseName: String?,
         setsDone: Int,
-        totalSets: Int?
+        totalSets: Int?,
+        targetWeight: Double? = null,
+        targetReps: Int? = null
     ) {
         val payload = JSONObject().apply {
             put("name", workoutName)
             put("exercise", exerciseName ?: "")
             put("setsDone", setsDone)
             put("totalSets", totalSets ?: 0)
+            if (targetWeight != null) put("targetWeight", targetWeight)
+            if (targetReps != null) put("targetReps", targetReps)
         }
         // Launch the watch app first so it's running when the message arrives.
         // Failures are swallowed — the user is not blocked by watch availability.
@@ -99,13 +103,17 @@ object WatchSyncManager {
         exerciseName: String?,
         setsDone: Int,
         totalSets: Int?,
-        lastSet: String?
+        lastSet: String?,
+        targetWeight: Double? = null,
+        targetReps: Int? = null
     ) {
         val payload = JSONObject().apply {
             put("exercise", exerciseName ?: "")
             put("setsDone", setsDone)
             put("totalSets", totalSets ?: 0)
             put("lastSet", lastSet ?: "")
+            if (targetWeight != null) put("targetWeight", targetWeight)
+            if (targetReps != null) put("targetReps", targetReps)
         }
         sendMessage(context, PATH_WORKOUT_UPDATE, payload.toString())
     }

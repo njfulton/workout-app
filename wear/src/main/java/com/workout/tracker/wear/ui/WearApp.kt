@@ -133,6 +133,27 @@ private fun ActiveWorkoutScreen(state: WatchWorkoutState, context: Context) {
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colors.primary
             )
+            // Show the upcoming weight + reps
+            val nextDetail = buildString {
+                val w = state.targetWeight
+                val r = state.targetReps
+                if (r != null && r > 0 && w != null && w > 0) {
+                    append("$r × ${w.toInt()} lb")
+                } else if (w != null && w > 0) {
+                    append("${w.toInt()} lb")
+                } else if (r != null && r > 0) {
+                    append("$r reps")
+                }
+            }
+            if (nextDetail.isNotBlank()) {
+                Text(
+                    nextDetail,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White.copy(alpha = 0.85f),
+                    textAlign = TextAlign.Center
+                )
+            }
             if (state.lastSet.isNotBlank()) {
                 Text(
                     "Last: ${state.lastSet}",

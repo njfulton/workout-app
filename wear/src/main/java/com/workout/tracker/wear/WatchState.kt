@@ -13,10 +13,11 @@ data class WatchWorkoutState(
     val setsDone: Int = 0,
     val totalSets: Int = 0,
     val lastSet: String = "",
+    val targetWeight: Double? = null,
+    val targetReps: Int? = null,
     val restInitialSeconds: Int = 0,
     val restRunning: Boolean = false,
     val restEndTimeMillis: Long = 0L,
-    // Diagnostic: most recent message path received from the phone + its ts
     val lastReceivedPath: String = "",
     val lastReceivedTs: Long = 0L
 )
@@ -29,7 +30,10 @@ object WatchState {
     private val _restFinishedTick = MutableStateFlow(0L)
     val restFinishedTick: StateFlow<Long> = _restFinishedTick
 
-    fun onWorkoutStart(name: String, exercise: String, setsDone: Int, totalSets: Int) {
+    fun onWorkoutStart(
+        name: String, exercise: String, setsDone: Int, totalSets: Int,
+        targetWeight: Double? = null, targetReps: Int? = null
+    ) {
         _state.value = _state.value.copy(
             isActive = true,
             workoutName = name,
@@ -37,19 +41,26 @@ object WatchState {
             setsDone = setsDone,
             totalSets = totalSets,
             lastSet = "",
+            targetWeight = targetWeight,
+            targetReps = targetReps,
             restInitialSeconds = 0,
             restRunning = false,
             restEndTimeMillis = 0L
         )
     }
 
-    fun onWorkoutUpdate(exercise: String, setsDone: Int, totalSets: Int, lastSet: String) {
+    fun onWorkoutUpdate(
+        exercise: String, setsDone: Int, totalSets: Int, lastSet: String,
+        targetWeight: Double? = null, targetReps: Int? = null
+    ) {
         _state.value = _state.value.copy(
             isActive = true,
             exerciseName = exercise,
             setsDone = setsDone,
             totalSets = totalSets,
-            lastSet = lastSet
+            lastSet = lastSet,
+            targetWeight = targetWeight,
+            targetReps = targetReps
         )
     }
 

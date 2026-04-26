@@ -266,9 +266,12 @@ class WorkoutViewModel(
                 val st = _activeWorkout.value
                 val ex = st.currentGroup?.exercises?.firstOrNull()
                 launch {
+                    val prefillWeight = ex?.let { getNextSetWeight(it) }
                     WatchSyncManager.sendWorkoutStart(
                         ctx, name, ex?.exercise?.name,
-                        ex?.sets?.count { !it.isWarmup } ?: 0, ex?.targetSets
+                        ex?.sets?.count { !it.isWarmup } ?: 0, ex?.targetSets,
+                        targetWeight = prefillWeight,
+                        targetReps = ex?.targetReps
                     )
                 }
             }
@@ -417,7 +420,11 @@ class WorkoutViewModel(
             if (w != null && w > 0) "${it.reps} x ${w.toInt()}lb" else "${it.reps} reps"
         }
         viewModelScope.launch {
-            WatchSyncManager.sendWorkoutUpdate(ctx, ex.exercise.name, setsDone, ex.targetSets, lastSet)
+            val prefillWeight = getNextSetWeight(ex)
+            WatchSyncManager.sendWorkoutUpdate(
+                ctx, ex.exercise.name, setsDone, ex.targetSets, lastSet,
+                targetWeight = prefillWeight, targetReps = ex.targetReps
+            )
         }
     }
 
@@ -742,6 +749,20 @@ class WorkoutViewModel(
             }
             onResult(sb.toString())
         }
+    }
+
+    private fun getNextSetWeight(exercise: ActiveExercise): Double? {
+        val lastSessionWeight = exercise.sets.lastOrNull { !it.isWarmup }?.weightLbs
+        if (lastSessionWeight != null && lastSessionWeight > 0) return lastSessionWeight
+        if (exercise.history.isNotEmpty()) {
+            val lastWorkoutTime = exercise.history.first().startTime
+            return exercise.history
+                .filter { it.startTime == lastWorkoutTime }
+                .mapNotNull { it.weightLbs }
+                .filter { it > 0 }
+                .maxOrNull()
+        }
+        return null
     }
 
     companion object {
