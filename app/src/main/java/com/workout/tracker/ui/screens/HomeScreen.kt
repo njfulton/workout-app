@@ -62,6 +62,9 @@ fun HomeScreen(
 
     var showLifetimeStats by remember { mutableStateOf(false) }
     var isWeekView by remember { mutableStateOf(true) }
+    // When a day is tapped, show a quick-action dialog right here instead of
+    // navigating to the full Schedule screen.
+    var selectedDate by remember { mutableStateOf<java.time.LocalDate?>(null) }
 
     Scaffold(
         topBar = {
@@ -288,7 +291,7 @@ fun HomeScreen(
                         weekStart = currentWeekStart,
                         schedule = weekSchedule,
                         onNavigateWeek = { scheduleViewModel.navigateWeek(it) },
-                        onDayClick = { navController.navigate(Screen.Schedule.route) },
+                        onDayClick = { date -> selectedDate = date },
                         onReschedule = { item, newDate -> scheduleViewModel.reschedule(item, newDate) }
                     )
                 }
@@ -298,13 +301,82 @@ fun HomeScreen(
                         yearMonth = currentMonth,
                         schedule = monthSchedule,
                         onNavigateMonth = { scheduleViewModel.navigateMonth(it) },
-                        onDayClick = { navController.navigate(Screen.Schedule.route) }
+                        onDayClick = { date -> selectedDate = date }
                     )
                 }
             }
 
             item { Spacer(Modifier.height(16.dp)) }
         }
+    }
+
+    // Day-tap dialog: lets you start a workout or view details directly
+    // from the home screen, without a detour through the Schedule screen.
+    selectedDate?.let { date ->
+        val schedule = if (isWeekView) weekSchedule else monthSchedule
+        val dayEpoch = date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val nextDayEpoch = date.plusDays(1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val dayItems = schedule.filter { it.scheduledDate in dayEpoch until nextDayEpoch }
+        val dateStr = date.format(java.time.format.DateTimeFormatter.ofPattern("EEE, MMM d"))
+
+        AlertDialog(
+            onDismissRequest = { selectedDate = null },
+            title = { Text(dateStr) },
+            text = {
+                if (dayItems.isEmpty()) {
+                    Text("Nothing scheduled", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        dayItems.forEach { item ->
+                            val name = item.templateName ?: item.label ?: "Workout"
+                            val status = when {
+                                item.isCompleted -> " (done)"
+                                item.isSkipped -> " (skipped)"
+                                else -> ""
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "$name$status",
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                if (item.isCompleted && item.completedWorkoutLogId != null) {
+                                    TextButton(onClick = {
+                                        selectedDate = null
+                                        navController.navigate(Screen.WorkoutDetail.createRoute(item.completedWorkoutLogId))
+                                    }) { Text("View") }
+                                } else if (!item.isCompleted && !item.isSkipped && item.templateId != null) {
+                                    TextButton(onClick = {
+                                        selectedDate = null
+                                        workoutViewModel.startWorkout(
+                                            name = item.templateName ?: "Workout",
+                                            type = com.workout.tracker.data.entity.WorkoutType.STRENGTH,
+                                            templateId = item.templateId,
+                                            scheduledWorkoutId = item.id
+                                        )
+                                        navController.navigate(Screen.ActiveWorkout.route) {
+                                            popUpTo(Screen.Home.route)
+                                        }
+                                    }) { Text("Start") }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    selectedDate = null
+                    navController.navigate(Screen.Schedule.route)
+                }) { Text("Full calendar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { selectedDate = null }) { Text("Close") }
+            }
+        )
     }
 
     // Lifetime stats dialog
