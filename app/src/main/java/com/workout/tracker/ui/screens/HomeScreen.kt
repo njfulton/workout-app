@@ -62,15 +62,33 @@ fun HomeScreen(
 
     var showLifetimeStats by remember { mutableStateOf(false) }
     var isWeekView by remember { mutableStateOf(true) }
-    // When a day is tapped, show a quick-action dialog right here instead of
-    // navigating to the full Schedule screen.
     var selectedDate by remember { mutableStateOf<java.time.LocalDate?>(null) }
+    var showScheduleDialog by remember { mutableStateOf(false) }
+    var showClearConfirm by remember { mutableStateOf(false) }
+    var moveItem by remember { mutableStateOf<com.workout.tracker.data.dao.ScheduledWorkoutWithTemplate?>(null) }
+    val templates by templateViewModel.templates.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Workout Tracker", fontWeight = FontWeight.Bold) }
+                title = { Text("Workout Tracker", fontWeight = FontWeight.Bold) },
+                actions = {
+                    IconButton(onClick = { isWeekView = !isWeekView }) {
+                        Icon(
+                            if (isWeekView) Icons.Default.CalendarMonth else Icons.Default.ViewWeek,
+                            contentDescription = if (isWeekView) "Month view" else "Week view"
+                        )
+                    }
+                    IconButton(onClick = { showClearConfirm = true }) {
+                        Icon(Icons.Default.DeleteSweep, contentDescription = "Clear future schedule")
+                    }
+                }
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = { showScheduleDialog = true }) {
+                Icon(Icons.Default.Add, contentDescription = "Schedule workout")
+            }
         }
     ) { padding ->
         LazyColumn(
@@ -262,27 +280,13 @@ fun HomeScreen(
                 }
             }
 
-            // Schedule section with week/month toggle
+            // Schedule section
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        if (isWeekView) "This Week" else "This Month",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(Modifier.weight(1f))
-                    SegmentedToggle(
-                        isWeekView = isWeekView,
-                        onToggle = { isWeekView = it }
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    TextButton(onClick = { navController.navigate(Screen.Schedule.route) }) {
-                        Text("Open", style = MaterialTheme.typography.labelSmall)
-                    }
-                }
+                Text(
+                    if (isWeekView) "This Week" else "This Month",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
 
             if (isWeekView) {
@@ -326,55 +330,178 @@ fun HomeScreen(
                 if (dayItems.isEmpty()) {
                     Text("Nothing scheduled", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         dayItems.forEach { item ->
                             val name = item.templateName ?: item.label ?: "Workout"
-                            val status = when {
-                                item.isCompleted -> " (done)"
-                                item.isSkipped -> " (skipped)"
-                                else -> ""
-                            }
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    "$name$status",
-                                    modifier = Modifier.weight(1f),
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
+                            val isDone = item.isCompleted || item.isSkipped
+                            val isRestDay = item.label?.lowercase()?.contains("rest") == true
+
+                            Column {
+                                // Name + status
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    val statusIcon = when {
+                                        item.isCompleted -> Icons.Default.CheckCircle
+                                        item.isSkipped -> Icons.Default.Cancel
+                                        else -> Icons.Default.Circle
+                                    }
+                                    val statusColor = when {
+                                        item.isCompleted -> MaterialTheme.colorScheme.primary
+                                        item.isSkipped -> MaterialTheme.colorScheme.error
+                                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
+                                    Icon(statusIcon, null, modifier = Modifier.size(16.dp), tint = statusColor)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                                }
+
+                                Spacer(Modifier.height(6.dp))
+
+                                // Completed: View + Undo
                                 if (item.isCompleted && item.completedWorkoutLogId != null) {
-                                    TextButton(onClick = {
-                                        selectedDate = null
-                                        navController.navigate(Screen.WorkoutDetail.createRoute(item.completedWorkoutLogId))
-                                    }) { Text("View") }
-                                } else if (!item.isCompleted && !item.isSkipped && item.templateId != null) {
-                                    TextButton(onClick = {
-                                        selectedDate = null
-                                        workoutViewModel.startWorkout(
-                                            name = item.templateName ?: "Workout",
-                                            type = com.workout.tracker.data.entity.WorkoutType.STRENGTH,
-                                            templateId = item.templateId,
-                                            scheduledWorkoutId = item.id
-                                        )
-                                        navController.navigate(Screen.ActiveWorkout.route) {
-                                            popUpTo(Screen.Home.route)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Button(
+                                            onClick = {
+                                                selectedDate = null
+                                                navController.navigate(Screen.WorkoutDetail.createRoute(item.completedWorkoutLogId))
+                                            },
+                                            modifier = Modifier.weight(1f),
+                                            contentPadding = PaddingValues(vertical = 6.dp)
+                                        ) { Text("View") }
+                                        OutlinedButton(
+                                            onClick = { scheduleViewModel.markUncompleted(item) },
+                                            modifier = Modifier.weight(1f),
+                                            contentPadding = PaddingValues(vertical = 6.dp)
+                                        ) { Text("Undo") }
+                                    }
+                                }
+
+                                // Skipped: Undo
+                                if (item.isSkipped && !isRestDay) {
+                                    OutlinedButton(
+                                        onClick = { scheduleViewModel.markUncompleted(item) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        contentPadding = PaddingValues(vertical = 6.dp)
+                                    ) { Text("Mark Incomplete") }
+                                }
+
+                                // Not done: Start / Done / Skip / Move
+                                if (!isDone && !isRestDay) {
+                                    if (item.templateId != null) {
+                                        Button(
+                                            onClick = {
+                                                selectedDate = null
+                                                workoutViewModel.startWorkout(
+                                                    name = item.templateName ?: "Workout",
+                                                    type = com.workout.tracker.data.entity.WorkoutType.STRENGTH,
+                                                    templateId = item.templateId,
+                                                    scheduledWorkoutId = item.id
+                                                )
+                                                navController.navigate(Screen.ActiveWorkout.route) {
+                                                    popUpTo(Screen.Home.route)
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            contentPadding = PaddingValues(vertical = 6.dp)
+                                        ) {
+                                            Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("Start Workout")
                                         }
-                                    }) { Text("Start") }
+                                        Spacer(Modifier.height(4.dp))
+                                    }
+
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        FilledTonalButton(
+                                            onClick = { scheduleViewModel.markCompleted(item) },
+                                            modifier = Modifier.weight(1f),
+                                            contentPadding = PaddingValues(vertical = 6.dp)
+                                        ) {
+                                            Icon(Icons.Default.Check, null, modifier = Modifier.size(14.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("Done")
+                                        }
+                                        OutlinedButton(
+                                            onClick = { scheduleViewModel.markSkipped(item) },
+                                            modifier = Modifier.weight(1f),
+                                            contentPadding = PaddingValues(vertical = 6.dp)
+                                        ) {
+                                            Icon(Icons.Default.SkipNext, null, modifier = Modifier.size(14.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("Skip")
+                                        }
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = {
+                                            moveItem = item
+                                            selectedDate = null
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        contentPadding = PaddingValues(vertical = 6.dp)
+                                    ) {
+                                        Icon(Icons.Default.EditCalendar, null, modifier = Modifier.size(14.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Move")
+                                    }
                                 }
                             }
                         }
                     }
                 }
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    selectedDate = null
-                    navController.navigate(Screen.Schedule.route)
-                }) { Text("Full calendar") }
-            },
             dismissButton = {
                 TextButton(onClick = { selectedDate = null }) { Text("Close") }
+            },
+            confirmButton = {}
+        )
+    }
+
+    // Move date dialog
+    moveItem?.let { item ->
+        MoveDateDialog(
+            currentDateMillis = item.scheduledDate,
+            onDismiss = { moveItem = null },
+            onMove = { newDate ->
+                scheduleViewModel.reschedule(item, newDate)
+                moveItem = null
+            }
+        )
+    }
+
+    // Schedule workout dialog (from FAB)
+    if (showScheduleDialog) {
+        ScheduleWorkoutDialog(
+            templates = templates,
+            onDismiss = { showScheduleDialog = false },
+            onScheduleTemplate = { templateId, date ->
+                scheduleViewModel.scheduleWorkout(templateId, date)
+                showScheduleDialog = false
+            },
+            onScheduleLabel = { label, date ->
+                scheduleViewModel.scheduleNonTemplate(label, date)
+                showScheduleDialog = false
+            },
+            onScheduleAerobic = { activityType, date, duration, distance, intensity ->
+                scheduleViewModel.scheduleAerobicEvent(activityType, date, duration, distance, intensity)
+                showScheduleDialog = false
+            }
+        )
+    }
+
+    // Clear future schedule confirmation
+    if (showClearConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { Text("Clear Future Schedule?") },
+            text = { Text("This will remove all upcoming workouts that haven't been completed. Completed workout history will not be affected.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    scheduleViewModel.clearFutureSchedule()
+                    showClearConfirm = false
+                }) { Text("Clear", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirm = false }) { Text("Cancel") }
             }
         )
     }
