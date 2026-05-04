@@ -237,7 +237,7 @@ fun ActiveWorkoutScreen(
                             onUpdateSet = { workoutViewModel.updateSet(it) },
                             onStartTimer = { workoutViewModel.startRestTimer(it) },
                             onMarkDone = { workoutViewModel.markExerciseDone(it) },
-                            defaultRestSeconds = currentGroup.exercises.first().restSeconds,
+                            defaultRestSeconds = minOf(currentGroup.exercises.first().restSeconds, 60),
                             onRestSecondsChanged = { seconds ->
                                 currentGroup.exercises.forEach { ex ->
                                     workoutViewModel.updateExerciseRestSeconds(ex.exerciseLogId, seconds)
