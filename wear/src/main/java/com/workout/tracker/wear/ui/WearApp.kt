@@ -34,7 +34,19 @@ fun WearApp() {
         if (restFinishedTick > 0L) vibrate(context)
     }
 
-    MaterialTheme {
+    // Sweat theme: lime accent on near-black
+    val sweatColors = MaterialTheme.colors.copy(
+        primary = Color(0xFFD4FF3D),
+        primaryVariant = Color(0xFFD4FF3D),
+        secondary = Color(0xFFD4FF3D),
+        background = Color(0xFF0A0A0B),
+        surface = Color(0xFF141416),
+        onPrimary = Color(0xFF0A0A0B),
+        onBackground = Color(0xFFFAFAFA),
+        onSurface = Color(0xFFFAFAFA)
+    )
+
+    MaterialTheme(colors = sweatColors) {
         when {
             state.restRunning -> RestTimerScreen(state)
             state.isActive -> ActiveWorkoutScreen(state, context)
@@ -47,7 +59,7 @@ fun WearApp() {
 private fun IdleScreen(state: WatchWorkoutState) {
     Scaffold(timeText = { TimeText() }) {
         Box(
-            modifier = Modifier.fillMaxSize().background(Color.Black),
+            modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0B)),
             contentAlignment = Alignment.Center
         ) {
             Column(
@@ -60,14 +72,14 @@ private fun IdleScreen(state: WatchWorkoutState) {
                     textAlign = TextAlign.Center,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = Color(0xFFFAFAFA)
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "Start a workout\non your phone",
                     textAlign = TextAlign.Center,
                     fontSize = 12.sp,
-                    color = Color.Gray
+                    color = Color(0xFF9A9AA2)
                 )
                 // Diagnostic: show last-received message so user can verify
                 // the phone→watch link without ADB.
@@ -78,14 +90,14 @@ private fun IdleScreen(state: WatchWorkoutState) {
                         "last msg: ${state.lastReceivedPath}",
                         textAlign = TextAlign.Center,
                         fontSize = 9.sp,
-                        color = Color.DarkGray,
+                        color = Color(0xFF5C5C66),
                         maxLines = 1
                     )
                     Text(
                         "${ago}s ago",
                         textAlign = TextAlign.Center,
                         fontSize = 9.sp,
-                        color = Color.DarkGray
+                        color = Color(0xFF5C5C66)
                     )
                 }
             }
@@ -102,7 +114,7 @@ private fun ActiveWorkoutScreen(state: WatchWorkoutState, context: Context) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black)
+                .background(Color(0xFF0A0A0B))
                 .padding(horizontal = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
@@ -110,7 +122,7 @@ private fun ActiveWorkoutScreen(state: WatchWorkoutState, context: Context) {
             Text(
                 state.workoutName.ifBlank { "Workout" },
                 fontSize = 12.sp,
-                color = Color.Gray,
+                color = Color(0xFF9A9AA2),
                 textAlign = TextAlign.Center,
                 maxLines = 1
             )
@@ -119,7 +131,7 @@ private fun ActiveWorkoutScreen(state: WatchWorkoutState, context: Context) {
                 state.exerciseName.ifBlank { "—" },
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = Color(0xFFFAFAFA),
                 textAlign = TextAlign.Center,
                 maxLines = 2
             )
@@ -150,7 +162,7 @@ private fun ActiveWorkoutScreen(state: WatchWorkoutState, context: Context) {
                     nextDetail,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White.copy(alpha = 0.85f),
+                    color = Color(0xFFFAFAFA).copy(alpha = 0.85f),
                     textAlign = TextAlign.Center
                 )
             }
@@ -158,7 +170,7 @@ private fun ActiveWorkoutScreen(state: WatchWorkoutState, context: Context) {
                 Text(
                     "Last: ${state.lastSet}",
                     fontSize = 11.sp,
-                    color = Color.Gray,
+                    color = Color(0xFF9A9AA2),
                     textAlign = TextAlign.Center,
                     maxLines = 1
                 )
@@ -205,7 +217,7 @@ private fun RestTimerScreen(state: WatchWorkoutState) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text("REST", fontSize = 14.sp, color = Color.Gray)
+            Text("REST", fontSize = 14.sp, color = Color(0xFF9A9AA2))
             Spacer(Modifier.height(4.dp))
             Text(
                 "${remainingSec / 60}:${(remainingSec % 60).toString().padStart(2, '0')}",
@@ -218,7 +230,7 @@ private fun RestTimerScreen(state: WatchWorkoutState) {
                 Text(
                     state.exerciseName,
                     fontSize = 12.sp,
-                    color = Color.Gray,
+                    color = Color(0xFF9A9AA2),
                     textAlign = TextAlign.Center,
                     maxLines = 1
                 )
