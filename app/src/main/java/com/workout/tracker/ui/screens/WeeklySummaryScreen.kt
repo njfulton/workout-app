@@ -1,8 +1,10 @@
 package com.workout.tracker.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -10,19 +12,19 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.workout.tracker.data.dao.MuscleGroupVolume
 import com.workout.tracker.data.dao.WorkoutLogSummary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
 import com.workout.tracker.data.repository.WorkoutRepository
 import com.workout.tracker.ui.navigation.Screen
-import kotlinx.coroutines.flow.map
 import java.text.SimpleDateFormat
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -37,7 +39,7 @@ fun WeeklySummaryScreen(
     navController: NavController,
     repository: WorkoutRepository
 ) {
-    var weekOffset by remember { mutableIntStateOf(0) } // 0 = this week, -1 = last week, etc.
+    var weekOffset by remember { mutableIntStateOf(0) }
 
     val today = LocalDate.now()
     val weekStart = today.plusWeeks(weekOffset.toLong())
@@ -67,27 +69,51 @@ fun WeeklySummaryScreen(
     }
 
     val dateFormatter = DateTimeFormatter.ofPattern("MMM d")
-    val weekLabel = "${weekStart.format(dateFormatter)} - ${weekEnd.format(dateFormatter)}, ${weekEnd.year}"
+    val weekLabel = "${weekStart.format(dateFormatter)} - ${weekEnd.format(dateFormatter)}"
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Weekly Summary") },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            // Custom header
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = { navController.popBackStack() },
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surface)
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            "LIFETIME",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            "Your stats",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+                }
+            }
+
             // Week navigation
             item {
                 Row(
@@ -100,7 +126,7 @@ fun WeeklySummaryScreen(
                     }
                     Text(
                         weekLabel,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold
                     )
                     IconButton(
@@ -112,30 +138,44 @@ fun WeeklySummaryScreen(
                 }
             }
 
-            // Stats cards row
+            // Stats grid — 2x3 like the mockup
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    StatCard(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.FitnessCenter,
-                        value = "${workouts.size}",
-                        label = "Workouts"
-                    )
-                    StatCard(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.Timer,
-                        value = "${totalWorkoutMinutes}m",
-                        label = "Time"
-                    )
-                    StatCard(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.Sports,
-                        value = "$totalPushups",
-                        label = "Pushups"
-                    )
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        SweatBigStat(
+                            modifier = Modifier.weight(1f),
+                            kicker = "THIS WEEK",
+                            value = "${workouts.size}",
+                            sub = "workouts",
+                            highlighted = true
+                        )
+                        SweatBigStat(
+                            modifier = Modifier.weight(1f),
+                            kicker = "TIME",
+                            value = "${totalWorkoutMinutes}m",
+                            sub = "active"
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        SweatBigStat(
+                            modifier = Modifier.weight(1f),
+                            kicker = "PUSHUPS",
+                            value = "$totalPushups",
+                            sub = "$pushupSessions sessions"
+                        )
+                        SweatBigStat(
+                            modifier = Modifier.weight(1f),
+                            kicker = "EXERCISES",
+                            value = "${workouts.sumOf { it.exerciseCount }}",
+                            sub = "total"
+                        )
+                    }
                 }
             }
 
@@ -143,14 +183,21 @@ fun WeeklySummaryScreen(
             if (muscleGroupVolume.isNotEmpty()) {
                 item {
                     Text(
-                        "Volume by Muscle Group",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                        "VOLUME BY MUSCLE",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        letterSpacing = 1.sp
                     )
                 }
                 item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             val maxSets = muscleGroupVolume.maxOf { it.totalSets }
                             muscleGroupVolume.forEach { mgv ->
                                 val name = mgv.muscleGroup.lowercase().replace("_", " ")
@@ -163,6 +210,7 @@ fun WeeklySummaryScreen(
                                     Text(
                                         name,
                                         style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.SemiBold,
                                         modifier = Modifier.width(90.dp)
                                     )
                                     Box(modifier = Modifier.weight(1f).height(20.dp)) {
@@ -176,9 +224,10 @@ fun WeeklySummaryScreen(
                                     }
                                     Spacer(Modifier.width(8.dp))
                                     Text(
-                                        "${mgv.totalSets} sets",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.width(52.dp),
+                                        "${mgv.totalSets}",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.width(32.dp),
                                         textAlign = TextAlign.End
                                     )
                                 }
@@ -192,9 +241,11 @@ fun WeeklySummaryScreen(
             if (workouts.isNotEmpty()) {
                 item {
                     Text(
-                        "Workouts",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                        "WORKOUTS",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        letterSpacing = 1.sp
                     )
                 }
                 items(workouts, key = { it.id }) { workout ->
@@ -206,9 +257,11 @@ fun WeeklySummaryScreen(
             if (pushupLogs.isNotEmpty()) {
                 item {
                     Text(
-                        "Pushup Sessions ($pushupSessions)",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                        "PUSHUP SESSIONS",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        letterSpacing = 1.sp
                     )
                 }
                 items(pushupLogs, key = { it.id }) { log ->
@@ -242,6 +295,50 @@ fun WeeklySummaryScreen(
             }
 
             item { Spacer(Modifier.height(16.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun SweatBigStat(
+    modifier: Modifier = Modifier,
+    kicker: String,
+    value: String,
+    sub: String,
+    highlighted: Boolean = false
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            1.dp,
+            if (highlighted) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+            else MaterialTheme.colorScheme.outline
+        )
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+            Text(
+                kicker,
+                style = MaterialTheme.typography.labelSmall,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp,
+                color = if (highlighted) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                value,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = (-0.5).sp
+            )
+            Text(
+                sub,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -297,31 +394,48 @@ fun WorkoutSummaryCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         onClick = { navController.navigate(Screen.WorkoutDetail.createRoute(workout.id)) }
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                Icons.Default.CheckCircle,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
-            )
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(workout.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                Text(workout.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
                 Text(
                     buildString {
                         append(dateFormat.format(Date(workout.startTime)))
-                        append(" \u2022 ${workout.exerciseCount} exercises")
-                        if (durationMin != null && durationMin > 0) append(" \u2022 ${durationMin}m")
+                        append(" • ${workout.exerciseCount} exercises")
+                        if (durationMin != null && durationMin > 0) append(" • ${durationMin}m")
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
