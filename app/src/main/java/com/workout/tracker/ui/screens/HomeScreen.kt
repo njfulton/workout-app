@@ -775,7 +775,7 @@ private fun SweatStatChip(
                 else MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.Baseline) {
+            Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     value,
                     style = MaterialTheme.typography.headlineSmall,
