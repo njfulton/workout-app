@@ -266,8 +266,7 @@ fun ExerciseProgressScreen(
 
                             Spacer(Modifier.height(16.dp))
                             // Hairline divider
-                            HorizontalDivider(
-                                thickness = 1.dp,
+                            @Suppress("DEPRECATION") Divider(
                                 color = MaterialTheme.colorScheme.outline
                             )
                             Spacer(Modifier.height(16.dp))
@@ -337,11 +336,6 @@ fun ExerciseProgressScreen(
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = MaterialTheme.colorScheme.primary,
                                         selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                                    ),
-                                    border = BorderStroke(
-                                        1.dp,
-                                        if (isSelected) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.outline
                                     )
                                 )
                             }

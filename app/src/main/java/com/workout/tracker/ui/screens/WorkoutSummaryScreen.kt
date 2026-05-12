@@ -104,7 +104,7 @@ fun WorkoutSummaryScreen(
                         SweatSumStat("VOLUME", "$volStr lb")
                     }
                 }
-                HorizontalDivider(
+                @Suppress("DEPRECATION") Divider(
                     modifier = Modifier.padding(horizontal = 20.dp),
                     color = MaterialTheme.colorScheme.outline
                 )
@@ -147,10 +147,10 @@ fun WorkoutSummaryScreen(
                             )
                             data.personalRecords.forEach { pr ->
                                 val desc = when (pr.type) {
-                                    PRType.MAX_WEIGHT -> "${pr.exerciseName} · ${pr.weightLbs?.toInt()} lbs"
-                                    PRType.MAX_VOLUME -> "${pr.exerciseName} · Vol ${pr.value.toInt()}"
-                                    PRType.MAX_ESTIMATED_1RM -> "${pr.exerciseName} · e1RM ${pr.value.toInt()}"
-                                    PRType.MAX_REPS -> "${pr.exerciseName} · ${pr.reps} reps"
+                                    PRType.MAX_WEIGHT -> "Max Weight: ${pr.weightLbs?.toInt()} lbs"
+                                    PRType.MAX_VOLUME -> "Best Set Volume: ${pr.value.toInt()} lbs"
+                                    PRType.MAX_ESTIMATED_1RM -> "Est. 1RM: ${pr.value.toInt()} lbs"
+                                    PRType.MAX_REPS -> "Max Reps: ${pr.reps}"
                                 }
                                 Text(
                                     desc,
@@ -212,7 +212,7 @@ fun WorkoutSummaryScreen(
                                 }
                             }
                             if (index < data.exercises.size - 1) {
-                                HorizontalDivider(
+                                @Suppress("DEPRECATION") Divider(
                                     modifier = Modifier.padding(horizontal = 16.dp),
                                     color = MaterialTheme.colorScheme.outline
                                 )

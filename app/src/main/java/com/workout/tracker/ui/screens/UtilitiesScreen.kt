@@ -241,9 +241,8 @@ private fun SectionHeader(
             letterSpacing = 1.5.sp
         )
         Spacer(Modifier.width(12.dp))
-        HorizontalDivider(
+        @Suppress("DEPRECATION") Divider(
             modifier = Modifier.weight(1f),
-            thickness = 1.dp,
             color = MaterialTheme.colorScheme.outline
         )
     }
@@ -277,9 +276,8 @@ private fun GroupedCard(
                     onClick = item.onClick
                 )
                 if (index < items.lastIndex) {
-                    HorizontalDivider(
+                    @Suppress("DEPRECATION") Divider(
                         modifier = Modifier.padding(horizontal = 16.dp),
-                        thickness = 1.dp,
                         color = MaterialTheme.colorScheme.outline
                     )
                 }
