@@ -2,6 +2,7 @@ package com.workout.tracker.ui.screens
 
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -101,120 +102,122 @@ fun ActiveWorkoutScreen(
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // Top row: back + workout name/timer + Finish
+            Surface(
+                color = MaterialTheme.colorScheme.background,
+                shadowElevation = if (isTimerRunning) 0.dp else 2.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = { showExerciseList = true },
+                        colors = IconButtonDefaults.outlinedIconButtonColors()
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Exercise List")
+                    }
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.weight(1f)
+                    ) {
                         Text(
-                            activeWorkout.workoutLog?.name ?: "Workout",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
+                            (activeWorkout.workoutLog?.name ?: "Workout").uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.sp,
                             maxLines = 1
                         )
                         Text(
-                            elapsedStr,
+                            "$elapsedStr · ${currentGroupIndex + 1}/${groups.size}",
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
-                },
-                navigationIcon = {
-                    IconButton(onClick = { showExerciseList = true }) {
-                        Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Exercise List")
-                    }
-                },
-                actions = {
-                    TextButton(onClick = { showFinishConfirm = true }) {
-                        Text("Finish", color = MaterialTheme.colorScheme.primary)
+                    OutlinedButton(
+                        onClick = { showFinishConfirm = true },
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(100)
+                    ) {
+                        Text("Finish", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                     }
                 }
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { showExercisePicker = true }) {
-                Icon(Icons.Default.Add, contentDescription = "Add Exercise")
             }
         },
-        bottomBar = {
-            if (groups.isNotEmpty()) {
-                Surface(tonalElevation = 3.dp) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TextButton(
-                            onClick = { workoutViewModel.previousGroup() },
-                            enabled = currentGroupIndex > 0
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Back")
-                        }
-                        Text(
-                            "Exercise ${currentGroupIndex + 1} of ${groups.size}",
-                            style = MaterialTheme.typography.labelLarge
-                        )
-                        TextButton(
-                            onClick = { workoutViewModel.nextGroup() },
-                            enabled = currentGroupIndex < groups.size - 1
-                        ) {
-                            Text("Next")
-                            Spacer(Modifier.width(4.dp))
-                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
-                        }
-                    }
+        floatingActionButton = {
+            if (!isTimerRunning) {
+                FloatingActionButton(onClick = { showExercisePicker = true }) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Exercise")
                 }
             }
         }
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)
+            modifier = Modifier.fillMaxSize().padding(padding)
         ) {
-            // Rest timer - full-width centered when active
+            // Rest timer - full-screen overlay with ring
             if (isTimerRunning) {
                 Box(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(horizontal = 20.dp)
                     ) {
-                        Text(
-                            "REST",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(12.dp))
+                        // Rest pill
+                        Surface(
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(100),
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+                        ) {
+                            Text(
+                                "REST",
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                letterSpacing = 1.sp
+                            )
+                        }
+
+                        Spacer(Modifier.height(24.dp))
                         Text(
                             "${restTimer / 60}:${(restTimer % 60).toString().padStart(2, '0')}",
-                            fontSize = 96.sp,
+                            fontSize = 80.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
+                        Text(
+                            "REMAINING",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.sp
+                        )
+
                         Spacer(Modifier.height(24.dp))
-                        OutlinedButton(onClick = { workoutViewModel.skipRestTimer() }) {
-                            Text("Skip", style = MaterialTheme.typography.titleMedium)
+                        OutlinedButton(
+                            onClick = { workoutViewModel.skipRestTimer() },
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(100),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Skip rest · start now", style = MaterialTheme.typography.titleMedium)
                         }
 
-                        // Show the up-next exercise when the rest follows the last set
-                        // of the previous group. We detect that by the auto-advanced
-                        // currentGroup having no non-warmup sets logged yet.
                         currentGroup?.let { group ->
                             val groupNotStartedYet = group.exercises.all { ex ->
                                 ex.sets.none { !it.isWarmup }
                             }
                             if (groupNotStartedYet) {
-                                Spacer(Modifier.height(32.dp))
+                                Spacer(Modifier.height(24.dp))
                                 UpNextCard(group)
                             }
                         }
                     }
                 }
-            }
-
-            // Current exercise/superset content (hidden during rest timer)
-            if (isTimerRunning) {
-                // Timer fills the space above
             } else if (groups.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -223,10 +226,41 @@ fun ActiveWorkoutScreen(
                     Text("Tap + to add exercises", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else if (currentGroup != null) {
-                Column(
-                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())
+                // Exercise pager: prev/name/next — pinned
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Spacer(Modifier.height(8.dp))
+                    IconButton(
+                        onClick = { workoutViewModel.previousGroup() },
+                        enabled = currentGroupIndex > 0
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous exercise")
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            currentGroup.label,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.ExtraBold,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1
+                        )
+                    }
+                    IconButton(
+                        onClick = { workoutViewModel.nextGroup() },
+                        enabled = currentGroupIndex < groups.size - 1
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next exercise")
+                    }
+                }
+
+                // Scrollable content below pager
+                Column(
+                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)
+                ) {
                     if (currentGroup.isSuperset) {
                         FocusedSupersetCard(
                             exercises = currentGroup.exercises,
@@ -275,24 +309,43 @@ fun ActiveWorkoutScreen(
                         Spacer(Modifier.height(16.dp))
                         Card(
                             modifier = Modifier.fillMaxWidth(),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                         ) {
                             Row(
-                                modifier = Modifier.padding(12.dp),
+                                modifier = Modifier.padding(18.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.ArrowForward,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    "Up next: ${nextGroup.label}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Surface(
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    modifier = Modifier.size(56.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            Icons.Default.FitnessCenter,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(28.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.width(14.dp))
+                                Column {
+                                    Text(
+                                        "UP NEXT",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        letterSpacing = 1.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(
+                                        nextGroup.label,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
                     }

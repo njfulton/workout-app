@@ -110,93 +110,160 @@ private fun ActiveWorkoutScreen(state: WatchWorkoutState, context: Context) {
     val scope = rememberCoroutineScope()
     var sending by remember { mutableStateOf(false) }
 
+    val lime = Color(0xFFD4FF3D)
+    val limeText = Color(0xFF0A0A0B)
+    val total = if (state.totalSets > 0) state.totalSets else 4
+    val done = state.setsDone
+    val pct = if (total > 0) done.toFloat() / total else 0f
+
     Scaffold(timeText = { TimeText() }) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFF0A0A0B))
-                .padding(horizontal = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+        Box(
+            modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0B)),
+            contentAlignment = Alignment.Center
         ) {
-            Text(
-                state.workoutName.ifBlank { "Workout" },
-                fontSize = 12.sp,
-                color = Color(0xFF9A9AA2),
-                textAlign = TextAlign.Center,
-                maxLines = 1
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                state.exerciseName.ifBlank { "—" },
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFFFAFAFA),
-                textAlign = TextAlign.Center,
-                maxLines = 2
-            )
-            Spacer(Modifier.height(4.dp))
-            val setsText = if (state.totalSets > 0)
-                "${state.setsDone} / ${state.totalSets} sets"
-            else "${state.setsDone} sets"
-            Text(
-                setsText,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colors.primary
-            )
-            // Show the upcoming weight + reps
-            val nextDetail = buildString {
-                val w = state.targetWeight
-                val r = state.targetReps
-                if (r != null && r > 0 && w != null && w > 0) {
-                    append("$r × ${w.toInt()} lb")
-                } else if (w != null && w > 0) {
-                    append("${w.toInt()} lb")
-                } else if (r != null && r > 0) {
-                    append("$r reps")
+            // Sets-complete arc
+            androidx.compose.foundation.Canvas(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                val arcR = size.minDimension * 0.40f
+                val strokeW = 10.dp.toPx()
+                val topLeft = androidx.compose.ui.geometry.Offset(
+                    (size.width - arcR * 2) / 2f,
+                    (size.height - arcR * 2) / 2f
+                )
+                val arcSize = androidx.compose.ui.geometry.Size(arcR * 2, arcR * 2)
+
+                // Track
+                drawArc(
+                    color = Color(0x1AFFFFFF),
+                    startAngle = -90f,
+                    sweepAngle = 360f,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                        width = strokeW,
+                        cap = androidx.compose.ui.graphics.StrokeCap.Round
+                    )
+                )
+
+                // Filled progress
+                if (pct > 0f) {
+                    drawArc(
+                        color = lime,
+                        startAngle = -90f,
+                        sweepAngle = pct * 360f,
+                        useCenter = false,
+                        topLeft = topLeft,
+                        size = arcSize,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(
+                            width = strokeW,
+                            cap = androidx.compose.ui.graphics.StrokeCap.Round
+                        )
+                    )
                 }
             }
-            if (nextDetail.isNotBlank()) {
+
+            // Center content
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(horizontal = 40.dp)
+            ) {
+                // Exercise name
                 Text(
-                    nextDetail,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFFFAFAFA).copy(alpha = 0.85f),
-                    textAlign = TextAlign.Center
-                )
-            }
-            if (state.lastSet.isNotBlank()) {
-                Text(
-                    "Last: ${state.lastSet}",
-                    fontSize = 11.sp,
-                    color = Color(0xFF9A9AA2),
+                    state.exerciseName.ifBlank { "—" }.uppercase(),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF5C5C66),
                     textAlign = TextAlign.Center,
-                    maxLines = 1
+                    maxLines = 1,
+                    letterSpacing = 1.sp
+                )
+
+                // Big reps × weight
+                val r = state.targetReps
+                val w = state.targetWeight
+                if (r != null && r > 0 && w != null && w > 0) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "$r",
+                            fontSize = 44.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFAFAFA)
+                        )
+                        Text(
+                            " × ",
+                            fontSize = 20.sp,
+                            color = Color(0xFF5C5C66)
+                        )
+                        Text(
+                            "${w.toInt()}",
+                            fontSize = 44.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFAFAFA)
+                        )
+                    }
+                    Text(
+                        "lb",
+                        fontSize = 11.sp,
+                        color = Color(0xFF9A9AA2)
+                    )
+                } else if (r != null && r > 0) {
+                    Text(
+                        "$r reps",
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFFAFAFA)
+                    )
+                }
+
+                Spacer(Modifier.height(6.dp))
+
+                // Set counter pill
+                Text(
+                    "SET ${done + 1}/$total",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = lime,
+                    letterSpacing = 0.5.sp
+                )
+
+                Spacer(Modifier.height(10.dp))
+
+                // Big LOG SET button
+                Chip(
+                    onClick = {
+                        if (!sending) {
+                            sending = true
+                            scope.launch {
+                                WatchMessageSender.requestLogSet(context)
+                                delay(500)
+                                sending = false
+                            }
+                        }
+                    },
+                    label = {
+                        Text(
+                            if (sending) "…" else "LOG SET",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    },
+                    colors = ChipDefaults.chipColors(
+                        backgroundColor = lime,
+                        contentColor = limeText
+                    ),
+                    modifier = Modifier.fillMaxWidth(0.7f).height(44.dp)
                 )
             }
-            Spacer(Modifier.height(8.dp))
-            CompactChip(
-                onClick = {
-                    if (!sending) {
-                        sending = true
-                        scope.launch {
-                            WatchMessageSender.requestLogSet(context)
-                            delay(500)
-                            sending = false
-                        }
-                    }
-                },
-                label = { Text(if (sending) "…" else "Log Set") },
-                colors = ChipDefaults.primaryChipColors()
-            )
         }
     }
 }
 
 @Composable
 private fun RestTimerScreen(state: WatchWorkoutState) {
-    // Local countdown: compute remaining from restEndTimeMillis and tick every ~200ms
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(state.restEndTimeMillis) {
         while (state.restRunning) {
@@ -211,29 +278,83 @@ private fun RestTimerScreen(state: WatchWorkoutState) {
     val remainingMs = (state.restEndTimeMillis - now).coerceAtLeast(0L)
     val remainingSec = (remainingMs / 1000).toInt()
 
+    val lime = Color(0xFFD4FF3D)
+    val totalRestSec = state.restInitialSeconds.coerceAtLeast(1)
+    val pct = remainingSec.toFloat() / totalRestSec
+
     Scaffold(timeText = { TimeText() }) {
-        Column(
-            modifier = Modifier.fillMaxSize().background(Color.Black),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+        Box(
+            modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0B)),
+            contentAlignment = Alignment.Center
         ) {
-            Text("REST", fontSize = 14.sp, color = Color(0xFF9A9AA2))
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "${remainingSec / 60}:${(remainingSec % 60).toString().padStart(2, '0')}",
-                fontSize = 48.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colors.primary
-            )
-            if (state.exerciseName.isNotBlank()) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    state.exerciseName,
-                    fontSize = 12.sp,
-                    color = Color(0xFF9A9AA2),
-                    textAlign = TextAlign.Center,
-                    maxLines = 1
+            // Countdown ring
+            androidx.compose.foundation.Canvas(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                val arcR = size.minDimension * 0.40f
+                val strokeW = 10.dp.toPx()
+                val topLeft = androidx.compose.ui.geometry.Offset(
+                    (size.width - arcR * 2) / 2f,
+                    (size.height - arcR * 2) / 2f
                 )
+                val arcSize = androidx.compose.ui.geometry.Size(arcR * 2, arcR * 2)
+
+                drawArc(
+                    color = Color(0x1AFFFFFF),
+                    startAngle = -90f,
+                    sweepAngle = 360f,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                        width = strokeW,
+                        cap = androidx.compose.ui.graphics.StrokeCap.Round
+                    )
+                )
+
+                if (pct > 0f) {
+                    drawArc(
+                        color = lime,
+                        startAngle = -90f,
+                        sweepAngle = pct * 360f,
+                        useCenter = false,
+                        topLeft = topLeft,
+                        size = arcSize,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(
+                            width = strokeW,
+                            cap = androidx.compose.ui.graphics.StrokeCap.Round
+                        )
+                    )
+                }
+            }
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "REST",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF9A9AA2),
+                    letterSpacing = 1.sp
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "${remainingSec / 60}:${(remainingSec % 60).toString().padStart(2, '0')}",
+                    fontSize = 48.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = lime
+                )
+                if (state.exerciseName.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        state.exerciseName,
+                        fontSize = 11.sp,
+                        color = Color(0xFF9A9AA2),
+                        textAlign = TextAlign.Center,
+                        maxLines = 1
+                    )
+                }
             }
         }
     }
