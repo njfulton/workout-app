@@ -33,7 +33,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -325,8 +324,9 @@ fun ExerciseProgressScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             ChartMetric.values().forEach { metric ->
+                                val isSelected = selectedMetric == metric
                                 FilterChip(
-                                    selected = selectedMetric == metric,
+                                    selected = isSelected,
                                     onClick = { selectedMetric = metric },
                                     label = {
                                         Text(
@@ -338,11 +338,10 @@ fun ExerciseProgressScreen(
                                         selectedContainerColor = MaterialTheme.colorScheme.primary,
                                         selectedLabelColor = MaterialTheme.colorScheme.onPrimary
                                     ),
-                                    border = FilterChipDefaults.filterChipBorder(
-                                        borderColor = MaterialTheme.colorScheme.outline,
-                                        selectedBorderColor = MaterialTheme.colorScheme.primary,
-                                        enabled = true,
-                                        selected = selectedMetric == metric
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (isSelected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.outline
                                     )
                                 )
                             }
