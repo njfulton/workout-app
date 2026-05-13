@@ -1,13 +1,32 @@
 package com.workout.tracker.ui.navigation
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.workout.tracker.ui.screens.*
 import com.workout.tracker.ui.viewmodel.*
@@ -51,6 +70,56 @@ fun WorkoutNavHost(navController: NavHostController) {
     val workoutViewModel: WorkoutViewModel = viewModel(factory = WorkoutViewModel.Factory)
     val templateViewModel: TemplateViewModel = viewModel(factory = TemplateViewModel.Factory)
     val scheduleViewModel: ScheduleViewModel = viewModel(factory = ScheduleViewModel.Factory)
+
+    val activeWorkout by workoutViewModel.activeWorkout.collectAsStateWithLifecycle()
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = currentBackStackEntry?.destination?.route
+    val showWorkoutBar = activeWorkout.isActive && currentRoute != Screen.ActiveWorkout.route
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (showWorkoutBar) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.primary)
+                    .clickable {
+                        navController.navigate(Screen.ActiveWorkout.route) {
+                            launchSingleTop = true
+                        }
+                    }
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.FitnessCenter,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    activeWorkout.workoutLog?.name ?: "Workout in progress",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1
+                )
+                Text(
+                    "Return",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                )
+                Spacer(Modifier.width(4.dp))
+                Icon(
+                    Icons.Default.PlayArrow,
+                    contentDescription = "Return to workout",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
 
     NavHost(navController = navController, startDestination = Screen.Home.route) {
         composable(Screen.Home.route) {
@@ -224,4 +293,5 @@ fun WorkoutNavHost(navController: NavHostController) {
             WatchDiagnosticsScreen(navController = navController)
         }
     }
+    } // Column
 }

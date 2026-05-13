@@ -99,7 +99,7 @@ val SweatCardShape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
 
 @Composable
 fun WorkoutTrackerTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
