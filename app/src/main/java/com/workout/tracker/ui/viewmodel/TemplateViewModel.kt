@@ -1212,9 +1212,9 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
         while (i < lines.size) {
             val match = phaseRegex.find(lines[i])
             if (match != null) {
-                val startWeek = match.groupValues[1].toIntOrNull()
+                val startWeek = match.groupValues[1].toIntOrNull() ?: continue
                 val endWeek = match.groupValues[2].toIntOrNull() ?: startWeek
-                if (startWeek != null) {
+                run {
                     val blockLines = mutableListOf(match.groupValues[3].trim())
                     // Collect continuation lines (indented or non-phase lines)
                     var j = i + 1
