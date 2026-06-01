@@ -185,27 +185,54 @@ fun ImportRoutineScreen(
                 )
 
                 result.routines.forEachIndexed { index, routine ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(
-                                routine.name,
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Medium
+                    if (routine.isSwapOnly) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                             )
-                            Text(
-                                "${routine.exerciseCount} exercises",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            DayOfWeekPicker(
-                                selectedDays = dayAssignments[index] ?: emptyList(),
-                                onDaysChanged = { days ->
-                                    dayAssignments = dayAssignments.toMutableMap().apply {
-                                        put(index, days)
-                                    }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        routine.name,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        "${routine.exerciseCount} exercises · phase swap only",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
-                            )
+                            }
+                        }
+                    } else {
+                        Card(modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    routine.name,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    "${routine.exerciseCount} exercises",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                DayOfWeekPicker(
+                                    selectedDays = dayAssignments[index] ?: emptyList(),
+                                    onDaysChanged = { days ->
+                                        dayAssignments = dayAssignments.toMutableMap().apply {
+                                            put(index, days)
+                                        }
+                                    }
+                                )
+                            }
                         }
                     }
                 }
