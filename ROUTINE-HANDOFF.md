@@ -88,6 +88,42 @@ Phase modifications create variant templates (e.g., "Push Day (Intensification)"
 - `anchor sets to N` -- changes the first exercise's set count
 - `accessories cut to N sets` -- changes all non-anchor exercises
 - `on Day 1 and Day 2` -- limits changes to specific routines (0-indexed)
+- `use routine <Name>` -- swaps the entire rotation to a named routine for those weeks (mutually exclusive with set modifiers)
+
+### Routine swap by phase
+
+You can define a secondary routine (e.g., travel/bodyweight) and swap to it for specific weeks. This is useful for planned breaks, travel, or deload blocks with different exercises:
+
+```
+Routine: Push Day
+---
+Bench Press: 4x8 rest 2 min
+Incline Dumbbell Press: 3x10 rest 90s
+
+Routine: Pull Day
+---
+Barbell Row: 4x8 rest 2 min
+Lat Pulldown: 3x10 rest 90s
+
+Routine: Leg Day
+---
+Barbell Squat: 4x6 rest 3 min
+Romanian Deadlift: 3x10 rest 2 min
+
+Routine: Travel Maintenance
+---
+Push-Up: 3x15 rest 60s
+Bulgarian Split Squat: 3x12 rest 60s
+Dumbbell Row: 3x12 rest 60s
+
+10-Week Program
+Phase 1, Weeks 1-4 -- Accumulation
+Phase 2, Weeks 5-6 -- Travel
+  use routine Travel Maintenance
+Phase 3, Weeks 7-10 -- Intensification
+```
+
+During weeks 5-6, the "Travel Maintenance" template fills all day slots (cycling if fewer templates than slots — so a single travel routine repeats across Mon/Wed/Fri). Weeks 1-4 and 7-10 run the normal PPL rotation.
 
 ### Week count detection
 

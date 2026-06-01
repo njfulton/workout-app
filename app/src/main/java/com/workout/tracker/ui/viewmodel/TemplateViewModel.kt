@@ -523,6 +523,13 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
             results.add("\"${routine.name}\" (${routine.exercises.size} exercises)")
         }
 
+        // Build a name->templateIds lookup for "use routine" phases
+        val routineNameToIds = mutableMapOf<String, List<Long>>()
+        for ((index, routine) in parsedRoutines.withIndex()) {
+            val ids = routineNameToIds.getOrPut(routine.name.lowercase().trim()) { mutableListOf() }
+            (ids as MutableList).add(baseTemplateIds[index])
+        }
+
         // Determine which phases need variant templates
         // Group phases by their modification signature to avoid duplicate templates
         data class ModSignature(val anchorSets: Int?, val accessorySets: Int?, val affectedDays: List<Int>?)
@@ -535,8 +542,23 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
         // Map: phaseLabel -> list of templateIds (parallel to baseTemplateIds)
         val phaseTemplateMap = mutableMapOf<String, List<Long>>()
 
-        // All unmodified phases use base templates
+        // Handle "use routine" phases first — map to the named routine's templates
         for (phase in phases) {
+            if (phase.useRoutineName != null) {
+                val swapIds = routineNameToIds[phase.useRoutineName.lowercase().trim()]
+                if (swapIds != null) {
+                    phaseTemplateMap[phase.label] = swapIds
+                } else {
+                    results.add("Warning: routine \"${phase.useRoutineName}\" not found for ${phase.label}")
+                    phaseTemplateMap[phase.label] = baseTemplateIds
+                }
+                continue
+            }
+        }
+
+        // All unmodified phases (no set overrides, no routine swap) use base templates
+        for (phase in phases) {
+            if (phase.useRoutineName != null) continue
             if (phase.anchorSetsOverride == null && phase.accessorySetsOverride == null) {
                 phaseTemplateMap[phase.label] = baseTemplateIds
             }
@@ -1022,9 +1044,36 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
             val phaseLabel = phase?.label
             val templateIds = weekTemplateMap[week] ?: continue
 
-            for ((routineIndex, templateId) in templateIds.withIndex()) {
-                val days = dayAssignments[routineIndex] ?: continue
-                for (dow in days) {
+            // Collect all scheduled day slots for this week
+            val allDaySlots = dayAssignments.flatMap { (routineIndex, days) ->
+                days.map { dow -> routineIndex to dow }
+            }.sortedBy { it.second }
+
+            if (templateIds.size == allDaySlots.size || (phase?.useRoutineName == null)) {
+                // Normal path: templates align 1:1 with routine indices
+                for ((routineIndex, templateId) in templateIds.withIndex()) {
+                    val days = dayAssignments[routineIndex] ?: continue
+                    for (dow in days) {
+                        val date = weekMonday.with(dow)
+                        if (week == 1 && date.isBefore(startDate)) continue
+                        if (date.isBefore(today)) continue
+
+                        val millis = date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        repository.insertScheduledWorkout(
+                            com.workout.tracker.data.entity.ScheduledWorkout(
+                                templateId = templateId,
+                                scheduledDate = millis,
+                                label = phaseLabel
+                            )
+                        )
+                        scheduledCount++
+                    }
+                }
+            } else {
+                // Swap path: fewer templates than day slots — cycle through them
+                for ((slotIndex, daySlot) in allDaySlots.withIndex()) {
+                    val templateId = templateIds[slotIndex % templateIds.size]
+                    val dow = daySlot.second
                     val date = weekMonday.with(dow)
                     if (week == 1 && date.isBefore(startDate)) continue
                     if (date.isBefore(today)) continue
@@ -1106,7 +1155,8 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
         val weekRange: IntRange,
         val anchorSetsOverride: Int? = null,
         val accessorySetsOverride: Int? = null,
-        val affectedDays: List<Int>? = null // null = all days
+        val affectedDays: List<Int>? = null, // null = all days
+        val useRoutineName: String? = null   // swap entire rotation to a named routine
     )
 
     private fun parsePhases(text: String, totalWeeks: Int): List<Phase> {
@@ -1168,7 +1218,17 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
                 if (days.isNotEmpty()) affectedDays = days
             }
 
-            phases.add(Phase(label, startWeek..endWeek, anchorSetsOverride, accessorySetsOverride, affectedDays))
+            // "use routine <name>" — swap entire rotation to a named routine for these weeks
+            var useRoutineName: String? = null
+            val useRoutineMatch = Regex("use\\s+routine\\s+(.+?)(?:\\s*$)", RegexOption.IGNORE_CASE).find(fullText)
+            if (useRoutineMatch != null) {
+                useRoutineName = useRoutineMatch.groupValues[1].trim()
+                // Mutually exclusive with set modifiers
+                anchorSetsOverride = null
+                accessorySetsOverride = null
+            }
+
+            phases.add(Phase(label, startWeek..endWeek, anchorSetsOverride, accessorySetsOverride, affectedDays, useRoutineName))
         }
 
         return phases
