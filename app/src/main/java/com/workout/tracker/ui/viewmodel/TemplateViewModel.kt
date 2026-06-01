@@ -1203,11 +1203,39 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
             RegexOption.IGNORE_CASE
         )
 
-        for (match in phaseRegex.findAll(text)) {
-            val startWeek = match.groupValues[1].toIntOrNull() ?: continue
-            val endWeek = match.groupValues[2].toIntOrNull() ?: startWeek
-            val fullText = match.groupValues[3].trim()
-            val label = fullText.split(Regex("[.:]"))[0].trim()
+        // Collect each phase header + any indented/continuation lines that follow
+        val lines = text.lines()
+        data class PhaseBlock(val startWeek: Int, val endWeek: Int, val fullText: String)
+        val phaseBlocks = mutableListOf<PhaseBlock>()
+
+        var i = 0
+        while (i < lines.size) {
+            val match = phaseRegex.find(lines[i])
+            if (match != null) {
+                val startWeek = match.groupValues[1].toIntOrNull()
+                val endWeek = match.groupValues[2].toIntOrNull() ?: startWeek
+                if (startWeek != null) {
+                    val blockLines = mutableListOf(match.groupValues[3].trim())
+                    // Collect continuation lines (indented or non-phase lines)
+                    var j = i + 1
+                    while (j < lines.size) {
+                        val nextLine = lines[j]
+                        val isNextPhase = phaseRegex.containsMatchIn(nextLine)
+                        if (isNextPhase) break
+                        if (nextLine.isNotBlank()) blockLines.add(nextLine.trim())
+                        j++
+                    }
+                    phaseBlocks.add(PhaseBlock(startWeek, endWeek, blockLines.joinToString("\n")))
+                }
+            }
+            i++
+        }
+
+        for (block in phaseBlocks) {
+            val startWeek = block.startWeek
+            val endWeek = block.endWeek
+            val fullText = block.fullText
+            val label = fullText.lines().first().split(Regex("[.:]"))[0].trim()
 
             // Parse structural modifications from the phase description
             var anchorSetsOverride: Int? = null
