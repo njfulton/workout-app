@@ -7,6 +7,30 @@ import com.workout.tracker.data.entity.WorkoutLog
 import com.workout.tracker.data.entity.WorkoutType
 import kotlinx.coroutines.flow.Flow
 
+data class ExportRow(
+    val workoutId: Long,
+    val workoutName: String,
+    val workoutType: WorkoutType,
+    val startTime: Long,
+    val endTime: Long?,
+    val exerciseName: String,
+    val orderIndex: Int,
+    val setNumber: Int,
+    val reps: Int?,
+    val weightLbs: Double?,
+    val durationSeconds: Int?,
+    val distanceMiles: Double?,
+    val isWarmup: Boolean
+)
+
+data class ExerciseHistoryEntry(
+    val startTime: Long,
+    val setNumber: Int,
+    val reps: Int?,
+    val weightLbs: Double?,
+    val isWarmup: Boolean
+)
+
 data class WorkoutLogSummary(
     val id: Long,
     val name: String,
@@ -16,6 +40,25 @@ data class WorkoutLogSummary(
     val exerciseCount: Int
 )
 
+data class ExerciseProgressEntry(
+    val workoutDate: Long,
+    val maxWeight: Double,
+    val totalVolume: Double,
+    val totalSets: Int
+)
+
+data class MuscleGroupVolume(
+    val muscleGroup: String,
+    val totalSets: Int,
+    val totalVolume: Double
+)
+
+data class DashboardStats(
+    val totalWorkouts: Int,
+    val workoutsThisWeek: Int,
+    val totalVolume: Double
+)
+
 @Dao
 interface WorkoutLogDao {
     @Query("""
@@ -23,6 +66,7 @@ interface WorkoutLogDao {
                COUNT(DISTINCT el.id) as exerciseCount
         FROM workout_logs w
         LEFT JOIN exercise_logs el ON w.id = el.workoutLogId
+        WHERE w.endTime IS NOT NULL
         GROUP BY w.id
         ORDER BY w.startTime DESC
     """)
@@ -64,6 +108,75 @@ interface WorkoutLogDao {
     """)
     suspend fun getMaxWeightForExercise(exerciseId: Long): Double?
 
+    @Query("""
+        SELECT w.startTime, sl.setNumber, sl.reps, sl.weightLbs, sl.isWarmup
+        FROM set_logs sl
+        INNER JOIN exercise_logs el ON sl.exerciseLogId = el.id
+        INNER JOIN workout_logs w ON el.workoutLogId = w.id
+        WHERE el.exerciseId = :exerciseId AND sl.isWarmup = 0 AND w.endTime IS NOT NULL
+        ORDER BY w.startTime DESC, sl.setNumber ASC
+        LIMIT :limit
+    """)
+    suspend fun getExerciseHistory(exerciseId: Long, limit: Int = 50): List<ExerciseHistoryEntry>
+
+    /**
+     * Full unfiltered history for an exercise. Unlike [getExerciseHistory],
+     * this does NOT drop warmup sets and does NOT require workouts to be
+     * finished (endTime IS NOT NULL) — so imported JEFIT history (where
+     * endTime may be missing) and any pre-routine workouts still show up.
+     * Used by the ExerciseProgress detailed history list.
+     */
+    @Query("""
+        SELECT w.startTime, sl.setNumber, sl.reps, sl.weightLbs, sl.isWarmup
+        FROM set_logs sl
+        INNER JOIN exercise_logs el ON sl.exerciseLogId = el.id
+        INNER JOIN workout_logs w ON el.workoutLogId = w.id
+        WHERE el.exerciseId = :exerciseId
+        ORDER BY w.startTime DESC, sl.setNumber ASC
+        LIMIT :limit
+    """)
+    suspend fun getFullExerciseHistory(exerciseId: Long, limit: Int = 1000): List<ExerciseHistoryEntry>
+
+    @Query("""
+        SELECT w.id as workoutId, w.name as workoutName, w.workoutType, w.startTime, w.endTime,
+               e.name as exerciseName, el.orderIndex,
+               sl.setNumber, sl.reps, sl.weightLbs, sl.durationSeconds, sl.distanceMiles, sl.isWarmup
+        FROM workout_logs w
+        INNER JOIN exercise_logs el ON w.id = el.workoutLogId
+        INNER JOIN exercises e ON el.exerciseId = e.id
+        INNER JOIN set_logs sl ON el.id = sl.exerciseLogId
+        ORDER BY w.startTime DESC, el.orderIndex ASC, sl.setNumber ASC
+    """)
+    suspend fun getAllDataForExport(): List<ExportRow>
+
+    @Query("""
+        SELECT w.startTime as workoutDate,
+               MAX(sl.weightLbs) as maxWeight,
+               SUM(sl.weightLbs * sl.reps) as totalVolume,
+               COUNT(sl.id) as totalSets
+        FROM set_logs sl
+        INNER JOIN exercise_logs el ON sl.exerciseLogId = el.id
+        INNER JOIN workout_logs w ON el.workoutLogId = w.id
+        WHERE el.exerciseId = :exerciseId AND sl.isWarmup = 0 AND sl.weightLbs IS NOT NULL
+        GROUP BY w.id
+        ORDER BY w.startTime ASC
+    """)
+    suspend fun getExerciseProgressData(exerciseId: Long): List<ExerciseProgressEntry>
+
+    @Query("""
+        SELECT e.muscleGroup as muscleGroup,
+               COUNT(sl.id) as totalSets,
+               COALESCE(SUM(sl.weightLbs * sl.reps), 0.0) as totalVolume
+        FROM set_logs sl
+        INNER JOIN exercise_logs el ON sl.exerciseLogId = el.id
+        INNER JOIN workout_logs w ON el.workoutLogId = w.id
+        INNER JOIN exercises e ON el.exerciseId = e.id
+        WHERE w.startTime >= :startDate AND w.startTime <= :endDate AND sl.isWarmup = 0
+        GROUP BY e.muscleGroup
+        ORDER BY totalSets DESC
+    """)
+    suspend fun getMuscleGroupVolume(startDate: Long, endDate: Long): List<MuscleGroupVolume>
+
     @Insert
     suspend fun insertWorkoutLog(workoutLog: WorkoutLog): Long
 
@@ -72,6 +185,9 @@ interface WorkoutLogDao {
 
     @Insert
     suspend fun insertSetLog(setLog: SetLog): Long
+
+    @Insert
+    suspend fun insertSetLogs(setLogs: List<SetLog>)
 
     @Update
     suspend fun updateWorkoutLog(workoutLog: WorkoutLog)
@@ -87,4 +203,28 @@ interface WorkoutLogDao {
 
     @Delete
     suspend fun deleteSetLog(setLog: SetLog)
+
+    @Query("""
+        SELECT el.note FROM exercise_logs el
+        INNER JOIN workout_logs w ON el.workoutLogId = w.id
+        WHERE el.exerciseId = :exerciseId AND el.note IS NOT NULL AND el.note != '' AND w.endTime IS NOT NULL
+        ORDER BY w.startTime DESC
+        LIMIT 1
+    """)
+    suspend fun getLatestNoteForExercise(exerciseId: Long): String?
+
+    @Query("UPDATE exercise_logs SET note = :note WHERE id = :exerciseLogId")
+    suspend fun updateExerciseLogNote(exerciseLogId: Long, note: String?)
+
+    @Query("SELECT * FROM workout_logs ORDER BY startTime DESC")
+    suspend fun getAllWorkoutLogsList(): List<WorkoutLog>
+
+    @Query("SELECT COUNT(*) FROM workout_logs WHERE endTime IS NOT NULL")
+    suspend fun getTotalCompletedWorkouts(): Int
+
+    @Query("""
+        SELECT COUNT(*) FROM workout_logs
+        WHERE endTime IS NOT NULL AND startTime >= :startDate
+    """)
+    suspend fun getCompletedWorkoutsSince(startDate: Long): Int
 }

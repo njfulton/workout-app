@@ -6,6 +6,10 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.workout.tracker.data.dao.ExerciseDao
+import com.workout.tracker.data.dao.FeatureUsageDao
+import com.workout.tracker.data.dao.PersonalRecordDao
+import com.workout.tracker.data.dao.PushupLogDao
+import com.workout.tracker.data.dao.SavedRoutineDao
 import com.workout.tracker.data.dao.ScheduleDao
 import com.workout.tracker.data.dao.WorkoutLogDao
 import com.workout.tracker.data.dao.WorkoutTemplateDao
@@ -19,9 +23,14 @@ import com.workout.tracker.data.entity.*
         WorkoutLog::class,
         ExerciseLog::class,
         SetLog::class,
-        ScheduledWorkout::class
+        ScheduledWorkout::class,
+        SavedRoutine::class,
+        RoutineUsageHistory::class,
+        PushupLog::class,
+        FeatureUsageLog::class,
+        PersonalRecord::class
     ],
-    version = 1,
+    version = 9,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -30,6 +39,10 @@ abstract class WorkoutDatabase : RoomDatabase() {
     abstract fun workoutTemplateDao(): WorkoutTemplateDao
     abstract fun workoutLogDao(): WorkoutLogDao
     abstract fun scheduleDao(): ScheduleDao
+    abstract fun savedRoutineDao(): SavedRoutineDao
+    abstract fun pushupLogDao(): PushupLogDao
+    abstract fun featureUsageDao(): FeatureUsageDao
+    abstract fun personalRecordDao(): PersonalRecordDao
 
     companion object {
         @Volatile
@@ -41,7 +54,7 @@ abstract class WorkoutDatabase : RoomDatabase() {
                     context.applicationContext,
                     WorkoutDatabase::class.java,
                     "workout_database"
-                ).build()
+                ).fallbackToDestructiveMigration().build()
                 INSTANCE = instance
                 instance
             }

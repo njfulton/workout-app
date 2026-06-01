@@ -54,4 +54,7 @@ interface WorkoutTemplateDao {
 
     @Delete
     suspend fun deleteTemplateExercise(templateExercise: TemplateExercise)
+
+    @Query("SELECT * FROM workout_templates ORDER BY name ASC")
+    suspend fun getAllTemplatesList(): List<WorkoutTemplate>
 }

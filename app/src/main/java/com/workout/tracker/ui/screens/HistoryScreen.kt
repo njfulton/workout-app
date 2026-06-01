@@ -1,19 +1,26 @@
 package com.workout.tracker.ui.screens
 
+import android.content.Intent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.workout.tracker.data.entity.WorkoutType
+import com.workout.tracker.ui.navigation.Screen
 import com.workout.tracker.ui.viewmodel.WorkoutViewModel
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -26,6 +33,7 @@ fun HistoryScreen(
     val workouts by viewModel.workoutHistory.collectAsStateWithLifecycle()
     val dateFormat = remember { SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault()) }
     val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -33,7 +41,27 @@ fun HistoryScreen(
                 title = { Text("Workout History") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    if (workouts.isNotEmpty()) {
+                        IconButton(onClick = {
+                            viewModel.exportToCsv { csv ->
+                                val fileName = "workout_export_${SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())}.csv"
+                                val file = File(context.cacheDir, fileName)
+                                file.writeText(csv)
+                                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/csv"
+                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(Intent.createChooser(intent, "Export Workout History"))
+                            }
+                        }) {
+                            Icon(Icons.Default.FileDownload, contentDescription = "Export CSV")
+                        }
                     }
                 }
             )
@@ -61,7 +89,10 @@ fun HistoryScreen(
                         Text(date, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(vertical = 4.dp))
                     }
                     items(dayWorkouts) { workout ->
-                        Card(modifier = Modifier.fillMaxWidth()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { navController.navigate(Screen.WorkoutDetail.createRoute(workout.id)) }
+                        ) {
                             Row(
                                 modifier = Modifier.padding(16.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -69,7 +100,7 @@ fun HistoryScreen(
                                 Icon(
                                     when (workout.workoutType) {
                                         WorkoutType.STRENGTH -> Icons.Default.FitnessCenter
-                                        WorkoutType.CARDIO -> Icons.Default.DirectionsRun
+                                        WorkoutType.CARDIO -> Icons.AutoMirrored.Filled.DirectionsRun
                                         WorkoutType.PELOTON -> Icons.Default.PedalBike
                                         WorkoutType.BODYWEIGHT_QUICK -> Icons.Default.Bolt
                                         WorkoutType.OTHER -> Icons.Default.SportsGymnastics
@@ -86,8 +117,12 @@ fun HistoryScreen(
                                             append("${workout.exerciseCount} exercises")
                                             append(" • ${timeFormat.format(Date(workout.startTime))}")
                                             if (workout.endTime != null) {
-                                                val durationMin = (workout.endTime - workout.startTime) / 60000
-                                                append(" • ${durationMin}min")
+                                                val totalMin = (workout.endTime - workout.startTime) / 60000
+                                                if (totalMin >= 60) {
+                                                    append(" • ${totalMin / 60}h ${totalMin % 60}m")
+                                                } else {
+                                                    append(" • ${totalMin}m")
+                                                }
                                             }
                                         },
                                         style = MaterialTheme.typography.bodySmall,

@@ -3,6 +3,7 @@ package com.workout.tracker.data
 import androidx.room.TypeConverter
 import com.workout.tracker.data.entity.ExerciseCategory
 import com.workout.tracker.data.entity.MuscleGroup
+import com.workout.tracker.data.entity.PRType
 import com.workout.tracker.data.entity.WorkoutType
 
 class Converters {
@@ -20,4 +21,9 @@ class Converters {
     fun fromWorkoutType(value: WorkoutType): String = value.name
     @TypeConverter
     fun toWorkoutType(value: String): WorkoutType = WorkoutType.valueOf(value)
+
+    @TypeConverter
+    fun fromPRType(value: PRType): String = value.name
+    @TypeConverter
+    fun toPRType(value: String): PRType = PRType.valueOf(value)
 }

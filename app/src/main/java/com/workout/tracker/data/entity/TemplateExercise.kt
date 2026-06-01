@@ -20,5 +20,6 @@ data class TemplateExercise(
     val orderIndex: Int,
     val targetSets: Int = 3,
     val targetReps: Int = 10,
-    val restSeconds: Int = 90
+    val restSeconds: Int = 120,
+    val supersetGroup: Int? = null
 )
