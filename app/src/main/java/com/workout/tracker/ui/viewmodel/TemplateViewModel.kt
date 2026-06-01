@@ -190,7 +190,8 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
     // Phase 1: Parse text and return routine info for user configuration
     data class ParsedRoutineInfo(
         val name: String,
-        val exerciseCount: Int
+        val exerciseCount: Int,
+        val isSwapOnly: Boolean = false
     )
     data class ParseResult(
         val routines: List<ParsedRoutineInfo>,
@@ -213,12 +214,41 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
         _lastParsedRoutines = parsedRoutines
 
         val weeks = detectWeekCount(text)
-        val defaultDays = getDefaultDayAssignments(parsedRoutines.size)
+
+        // Detect routines that are only used via "use routine" phases
+        val fullProgressionText = extractFullProgressionText(text)
+        val phases = parsePhasesWithModifications(fullProgressionText, weeks)
+        val swapRoutineNames = phases.mapNotNull { it.useRoutineName?.lowercase()?.trim() }.toSet()
+        val routineNames = parsedRoutines.map { it.name.lowercase().trim() }
+
+        val swapOnlyIndices = mutableSetOf<Int>()
+        for ((index, name) in routineNames.withIndex()) {
+            if (name in swapRoutineNames) {
+                swapOnlyIndices.add(index)
+            }
+        }
+
+        val mainRoutineCount = parsedRoutines.size - swapOnlyIndices.size
+        val defaultDays = getDefaultDayAssignments(mainRoutineCount)
+
+        // Remap day assignments: only assign days to non-swap routines
+        val remappedDays = mutableMapOf<Int, List<java.time.DayOfWeek>>()
+        var mainIndex = 0
+        for (i in parsedRoutines.indices) {
+            if (i in swapOnlyIndices) {
+                remappedDays[i] = emptyList()
+            } else {
+                remappedDays[i] = defaultDays[mainIndex] ?: emptyList()
+                mainIndex++
+            }
+        }
 
         return ParseResult(
-            routines = parsedRoutines.map { ParsedRoutineInfo(it.name, it.exercises.size) },
+            routines = parsedRoutines.mapIndexed { index, r ->
+                ParsedRoutineInfo(r.name, r.exercises.size, isSwapOnly = index in swapOnlyIndices)
+            },
             detectedWeeks = weeks,
-            defaultDayAssignments = defaultDays
+            defaultDayAssignments = remappedDays
         )
     }
 
