@@ -59,6 +59,7 @@ data class ActiveWorkoutState(
     val exercises: List<ActiveExercise> = emptyList(),
     val isActive: Boolean = false,
     val currentGroupIndex: Int = 0,
+    val currentSupersetTab: Int = 0,
     val isFromTemplate: Boolean = false,
     val scheduledWorkoutId: Long? = null
 ) {
@@ -413,7 +414,9 @@ class WorkoutViewModel(
         val ctx = appContext ?: return
         val state = _activeWorkout.value
         val currentGroup = state.currentGroup ?: return
-        val ex = currentGroup.exercises.firstOrNull() ?: return
+        val tabIndex = if (currentGroup.isSuperset) state.currentSupersetTab else 0
+        val ex = currentGroup.exercises.getOrNull(tabIndex)
+            ?: currentGroup.exercises.firstOrNull() ?: return
         val setsDone = ex.sets.count { !it.isWarmup }
         val lastSet = ex.sets.lastOrNull { !it.isWarmup }?.let {
             val w = it.weightLbs
@@ -447,15 +450,20 @@ class WorkoutViewModel(
     fun navigateToGroup(index: Int) {
         val state = _activeWorkout.value
         if (index in state.groups.indices) {
-            _activeWorkout.value = state.copy(currentGroupIndex = index)
+            _activeWorkout.value = state.copy(currentGroupIndex = index, currentSupersetTab = 0)
         }
+    }
+
+    fun setSupersetTab(tabIndex: Int) {
+        _activeWorkout.value = _activeWorkout.value.copy(currentSupersetTab = tabIndex)
+        syncWatchUpdate()
     }
 
     fun nextGroup() {
         val state = _activeWorkout.value
         val nextIndex = state.currentGroupIndex + 1
         if (nextIndex < state.groups.size) {
-            _activeWorkout.value = state.copy(currentGroupIndex = nextIndex)
+            _activeWorkout.value = state.copy(currentGroupIndex = nextIndex, currentSupersetTab = 0)
             syncWatchUpdate()
         }
     }
@@ -464,7 +472,7 @@ class WorkoutViewModel(
         val state = _activeWorkout.value
         val prevIndex = state.currentGroupIndex - 1
         if (prevIndex >= 0) {
-            _activeWorkout.value = state.copy(currentGroupIndex = prevIndex)
+            _activeWorkout.value = state.copy(currentGroupIndex = prevIndex, currentSupersetTab = 0)
             syncWatchUpdate()
         }
     }

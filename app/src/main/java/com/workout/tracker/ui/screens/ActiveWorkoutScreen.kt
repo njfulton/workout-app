@@ -271,6 +271,7 @@ fun ActiveWorkoutScreen(
                             onUpdateSet = { workoutViewModel.updateSet(it) },
                             onStartTimer = { workoutViewModel.startRestTimer(it) },
                             onMarkDone = { workoutViewModel.markExerciseDone(it) },
+                            onTabChanged = { workoutViewModel.setSupersetTab(it) },
                             defaultRestSeconds = minOf(currentGroup.exercises.first().restSeconds, 60),
                             onRestSecondsChanged = { seconds ->
                                 currentGroup.exercises.forEach { ex ->
@@ -934,6 +935,7 @@ fun FocusedSupersetCard(
     onUpdateSet: (SetLog) -> Unit,
     onStartTimer: (Int) -> Unit,
     onMarkDone: (Long) -> Unit,
+    onTabChanged: ((Int) -> Unit)? = null,
     defaultRestSeconds: Int = 120,
     onRestSecondsChanged: ((Int) -> Unit)? = null,
     onNoteChanged: ((Long, String) -> Unit)? = null,
@@ -962,7 +964,7 @@ fun FocusedSupersetCard(
                 exercises.forEachIndexed { index, ex ->
                     Tab(
                         selected = activeTab == index,
-                        onClick = { activeTab = index },
+                        onClick = { activeTab = index; onTabChanged?.invoke(index) },
                         text = { Text(ex.exercise.name, maxLines = 1) }
                     )
                 }
@@ -1111,10 +1113,11 @@ fun FocusedSupersetCard(
                             onLogSet(currentExercise.exerciseLogId, nextSetNumber, reps, weight, false)
                             if (activeTab < exercises.size - 1) {
                                 activeTab++
-                                // Short transition rest between superset exercises (30s)
+                                onTabChanged?.invoke(activeTab)
                                 onStartTimer(30)
                             } else {
                                 activeTab = 0
+                                onTabChanged?.invoke(0)
                                 onStartTimer(currentRestSeconds)
                             }
                         },
