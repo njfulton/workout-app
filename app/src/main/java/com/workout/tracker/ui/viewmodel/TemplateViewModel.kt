@@ -43,6 +43,12 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
         }
     }
 
+    fun updateTemplateExercise(templateExercise: TemplateExercise) {
+        viewModelScope.launch {
+            repository.updateTemplateExercise(templateExercise)
+        }
+    }
+
     fun updateTemplate(templateId: Long, name: String, description: String?, exercises: List<Pair<Long, TemplateExerciseConfig>>) {
         viewModelScope.launch {
             repository.updateTemplate(WorkoutTemplate(id = templateId, name = name, description = description))

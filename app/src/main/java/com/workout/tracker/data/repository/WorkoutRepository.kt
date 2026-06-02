@@ -39,6 +39,7 @@ class WorkoutRepository(
     suspend fun insertTemplateExercise(te: TemplateExercise): Long = templateDao.insertTemplateExercise(te)
     suspend fun insertTemplateExercises(exercises: List<TemplateExercise>) = templateDao.insertTemplateExercises(exercises)
     suspend fun updateTemplate(template: WorkoutTemplate) = templateDao.updateTemplate(template)
+    suspend fun updateTemplateExercise(te: TemplateExercise) = templateDao.updateTemplateExercise(te)
     suspend fun deleteTemplate(template: WorkoutTemplate) = templateDao.deleteTemplate(template)
     suspend fun deleteTemplateExercises(templateId: Long) = templateDao.deleteTemplateExercises(templateId)
 
