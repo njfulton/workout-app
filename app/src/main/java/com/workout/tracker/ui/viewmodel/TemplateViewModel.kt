@@ -920,18 +920,47 @@ class TemplateViewModel(private val repository: WorkoutRepository) : ViewModel()
         repository.getExerciseByName(name)?.let { return it }
         // Try with hyphens replaced
         repository.getExerciseByName(name.replace("-", " "))?.let { return it }
-        // Try common aliases
+        // Try common aliases — abbreviations + JEFIT-style long names
         val aliases = mapOf(
+            // Abbreviations
             "DB" to "Dumbbell", "BB" to "Barbell", "KB" to "Kettlebell",
-            "OH" to "Overhead", "RDL" to "Romanian Deadlift",
+            "OH" to "Overhead", "RDL" to "Romanian Deadlift", "OHP" to "Overhead Press",
+            // Short forms
             "Barbell Back Squat" to "Squat", "Barbell RDL" to "Romanian Deadlift",
+            "Barbell Squat" to "Squat", "Back Squat" to "Squat",
             "DB Curl" to "Dumbbell Curl", "DB Lateral Raise" to "Lateral Raise",
             "DB Overhead Tricep Extension" to "Overhead Tricep Extension",
             "DB Walking Lunge" to "Lunge", "DB Incline Curl" to "Incline Dumbbell Curl",
             "DB Skull Crusher" to "Skull Crusher", "DB Chest-Supported Row" to "Dumbbell Row",
             "Single-Arm DB Row" to "Dumbbell Row", "Hammer Curl" to "Hammer Curl",
             "Incline DB Press" to "Incline Dumbbell Press",
-            "Barbell Bent-Over Row" to "Barbell Row",
+            "DB Row" to "Dumbbell Row", "DB Bench Press" to "Dumbbell Bench Press",
+            "DB Shoulder Press" to "Dumbbell Shoulder Press", "DB Fly" to "Dumbbell Fly",
+            "DB Front Raise" to "Front Raise", "DB Reverse Fly" to "Rear Delt Fly",
+            "DB Romanian Deadlift" to "Romanian Deadlift", "DB Lunge" to "Lunge",
+            "BB Curl" to "Barbell Curl", "BB Row" to "Barbell Row",
+            "BB Bench Press" to "Bench Press", "BB Overhead Press" to "Overhead Press",
+            // Long-form JEFIT variants
+            "Barbell Bent-Over Row" to "Barbell Row", "Barbell Bent Over Row" to "Barbell Row",
+            "Barbell Bench Press" to "Bench Press",
+            "Barbell Military Press" to "Overhead Press",
+            "Standing Military Press" to "Overhead Press",
+            "Dumbbell Incline Bench Press" to "Incline Dumbbell Press",
+            "Dumbbell Bicep Curl" to "Dumbbell Curl",
+            "Barbell Deadlift" to "Deadlift", "Dumbbell Deadlift" to "Deadlift",
+            "Barbell Romanian Deadlift" to "Romanian Deadlift",
+            "Dumbbell Romanian Deadlift" to "Romanian Deadlift",
+            "Cable Rope Triceps Pushdown" to "Tricep Pushdown",
+            "Cable Tricep Pushdown" to "Tricep Pushdown",
+            "Barbell Lying Triceps Extension" to "Skull Crusher",
+            "Cable Rope Overhead Triceps Extension" to "Overhead Tricep Extension",
+            "Dumbbell Lateral Raise" to "Lateral Raise",
+            "Dumbbell Front Raise" to "Front Raise",
+            "Calf Raise" to "Standing Calf Raise",
+            "Lying Leg Curls" to "Leg Curl", "Seated Leg Curl" to "Leg Curl",
+            "Leg Extensions" to "Leg Extension",
+            "T Bar Row" to "T-Bar Row",
+            "Face Pull" to "Face Pull",
         )
         val aliasedName = aliases[name]
         if (aliasedName != null) {
