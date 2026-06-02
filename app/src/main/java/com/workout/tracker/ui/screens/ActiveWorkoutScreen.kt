@@ -1109,11 +1109,11 @@ fun FocusedSupersetCard(
                             val reps = repsText.toIntOrNull() ?: return@Button
                             val weight = weightText.toDoubleOrNull()
                             onLogSet(currentExercise.exerciseLogId, nextSetNumber, reps, weight, false)
-                            // Advance to next exercise in superset; start rest timer only after all exercises complete a set in this round
                             if (activeTab < exercises.size - 1) {
                                 activeTab++
+                                // Short transition rest between superset exercises (30s)
+                                onStartTimer(30)
                             } else {
-                                // All exercises in superset have logged a set this round
                                 activeTab = 0
                                 onStartTimer(currentRestSeconds)
                             }
