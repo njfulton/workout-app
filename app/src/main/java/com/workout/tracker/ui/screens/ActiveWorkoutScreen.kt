@@ -1114,7 +1114,6 @@ fun FocusedSupersetCard(
                             if (activeTab < exercises.size - 1) {
                                 activeTab++
                                 onTabChanged?.invoke(activeTab)
-                                onStartTimer(30)
                             } else {
                                 activeTab = 0
                                 onTabChanged?.invoke(0)
