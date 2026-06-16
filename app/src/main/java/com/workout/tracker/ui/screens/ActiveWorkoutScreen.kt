@@ -766,7 +766,7 @@ fun FocusedExerciseCard(
                 Spacer(Modifier.height(4.dp))
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
                     Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Notes, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                        Icon(Icons.AutoMirrored.Filled.Notes, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
                         Spacer(Modifier.width(6.dp))
                         Text("Last time: ${activeExercise.lastNote}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
                     }
@@ -1026,7 +1026,7 @@ fun FocusedSupersetCard(
                     Spacer(Modifier.height(4.dp))
                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
                         Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Notes, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Icon(Icons.AutoMirrored.Filled.Notes, contentDescription = null, modifier = Modifier.size(14.dp))
                             Spacer(Modifier.width(6.dp))
                             Text("Last time: ${currentExercise.lastNote}", style = MaterialTheme.typography.bodySmall)
                         }
