@@ -14,3 +14,8 @@ local.properties
 *.aab
 *.jks
 *.keystore
+
+# Personal workout exports: never commit real data (the tracked assets/jefit_backup.csv sample is structure-only)
+*JEfitt*
+njfulton_*
+/*.csv
